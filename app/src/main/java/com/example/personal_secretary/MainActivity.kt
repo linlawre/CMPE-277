@@ -15,6 +15,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
 import com.example.personal_secretary.ui.theme.Personal_SecretaryTheme
 import androidx.compose.ui.unit.dp
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
 
 class MainActivity : ComponentActivity() {
 
@@ -48,6 +50,7 @@ class MainActivity : ComponentActivity() {
                         Greeting(name = "Android")
                         Spacer(modifier = Modifier.height(16.dp))
                         MicButton { checkMicrophonePermission() }
+                        OpenNotesPage()
                     }
                 }
             }
@@ -83,6 +86,20 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 fun MicButton(onClick: () -> Unit) {
     Button(onClick = onClick) {
         Text("Enable Microphone")
+    }
+}
+
+/**
+ * Open the notes page
+ */
+@Composable
+fun OpenNotesPage() {
+    val context = LocalContext.current
+    Button(onClick = {
+        val intent = Intent(context, NotesActivity::class.java)
+        context.startActivity(intent)
+    }) {
+        Text("Opened Notes Page")
     }
 }
 
