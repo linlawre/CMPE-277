@@ -24,6 +24,10 @@
             android:name=".NotesActivity"
             android:exported="true"
             android:label="Note View" />
+        <activity
+            android:name=".TasksActivity"
+            android:exported="true"
+            android:label="Task View" />
     </application>
 
 </manifest>

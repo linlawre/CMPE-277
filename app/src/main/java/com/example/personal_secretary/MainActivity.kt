@@ -51,6 +51,7 @@ class MainActivity : ComponentActivity() {
                         Spacer(modifier = Modifier.height(16.dp))
                         MicButton { checkMicrophonePermission() }
                         OpenNotesPage()
+
                     }
                 }
             }
