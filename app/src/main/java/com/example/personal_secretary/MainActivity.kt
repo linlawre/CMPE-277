@@ -51,6 +51,7 @@ class MainActivity : ComponentActivity() {
                         Spacer(modifier = Modifier.height(16.dp))
                         MicButton { checkMicrophonePermission() }
                         OpenNotesPage()
+                        OpenTasksPage()
 
                     }
                 }
@@ -100,7 +101,21 @@ fun OpenNotesPage() {
         val intent = Intent(context, NotesActivity::class.java)
         context.startActivity(intent)
     }) {
-        Text("Opened Notes Page")
+        Text("Open Notes Page")
+    }
+}
+
+/**
+ * Open the tasks
+ */
+@Composable
+fun OpenTasksPage() {
+    val context = LocalContext.current
+    Button(onClick = {
+        val intent = Intent(context, TasksActivity::class.java)
+        context.startActivity(intent)
+    }) {
+        Text("Open Tasks Page")
     }
 }
 
