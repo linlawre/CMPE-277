@@ -13,6 +13,7 @@ import org.litote.kmongo.coroutine.CoroutineCollection
 import org.litote.kmongo.reactivestreams.KMongo
 import java.util.Properties
 import java.io.FileInputStream
+import io.ktor.server.request.*
 
 @kotlinx.serialization.Serializable
 data class Notes(
@@ -28,7 +29,7 @@ val props = Properties().apply {
 val mongoUri = props.getProperty("mongodb_uri")
 val client = KMongo.createClient(mongoUri).coroutine
 val database = client.getDatabase("notesdb")
-val notesCollection: CoroutineCollection<Notes> = database.getCollection()
+val notesCollection: CoroutineCollection<Notes> = database.getCollection("notes")
 fun Application.module() {
     install(ContentNegotiation) {
         json()
@@ -47,6 +48,11 @@ fun Application.module() {
         get("/notes") {
             val notes = notesCollection.find().toList()
             call.respond(notes)
+        }
+        post("/notes") {
+            val note = call.receive<Notes>()
+            notesCollection.insertOne(note)
+            call.respondText("Note added")
         }
     }
 }
