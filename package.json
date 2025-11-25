@@ -1,0 +1,28 @@
+{
+  "name": "cmpe-277",
+  "version": "1.0.0",
+  "description": "��#\u0000 \u0000C\u0000M\u0000P\u0000E\u0000-\u00002\u00007\u00007\u0000\r\u0000 \u0000B\u0000y\u0000 \u0000L\u0000a\u0000w\u0000r\u0000e\u0000n\u0000c\u0000e\u0000 \u0000L\u0000i\u0000n\u0000 \u0000a\u0000n\u0000d\u0000 \u0000T\u0000i\u0000m\u0000o\u0000t\u0000h\u0000y\u0000 \u0000N\u0000g\u0000u\u0000y\u0000e\u0000n\u0000\r\u0000 \u0000(\u0000Q\u0000u\u0000i\u0000c\u0000k\u0000 \u0000g\u0000i\u0000t\u0000 \u0000p\u0000u\u0000s\u0000h\u0000 \u0000t\u0000e\u0000s\u0000t\u0000)\u0000",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/linlawre/CMPE-277.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/linlawre/CMPE-277/issues"
+  },
+  "homepage": "https://github.com/linlawre/CMPE-277#readme",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "mongoose": "^9.0.0"
+  }
+}

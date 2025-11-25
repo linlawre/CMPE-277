@@ -29,6 +29,15 @@
             android:name=".TasksActivity"
             android:exported="true"
             android:label="Task View" />
+        <activity
+            android:name=".LoginActivity"
+            android:exported="true"
+            android:label="Login" />
+        <activity
+            android:name=".SignupActivity"
+            android:exported="true"
+            android:label="Sign Up" />
+
     </application>
 
 </manifest>

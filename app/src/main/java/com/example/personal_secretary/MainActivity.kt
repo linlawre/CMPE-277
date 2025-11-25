@@ -52,6 +52,7 @@ class MainActivity : ComponentActivity() {
                         MicButton { checkMicrophonePermission() }
                         OpenNotesPage()
                         OpenTasksPage()
+                        OpenLoginPage()
 
                     }
                 }
@@ -127,5 +128,16 @@ fun GreetingPreview() {
             Greeting("Android")
             MicButton {}
         }
+    }
+}
+
+@Composable
+fun OpenLoginPage() {
+    val context = LocalContext.current
+    Button(onClick = {
+        val intent = Intent(context, LoginActivity::class.java)
+        context.startActivity(intent)
+    }) {
+        Text("Open Login Page")
     }
 }
