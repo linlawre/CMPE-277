@@ -5,10 +5,12 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,19 +18,46 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.personal_secretary.notes.NoteModel
 import com.example.personal_secretary.ui.theme.Personal_SecretaryTheme
-import io.ktor.client.call.*
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
 import kotlinx.coroutines.launch
-import kotlinx.serialization.Serializable
+import retrofit2.Response
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.http.*
+import java.time.LocalDate
 
-@Serializable
 data class NoteRequest(
-    val id: Int,
     val date: String,
-    val location: String? = null,
+    val user: String = "guest",
+    val title: String,
     val description: String
 )
+
+
+interface ApiService {
+    @GET("notes")
+    suspend fun getNotes(): List<NoteModel>
+
+    @POST("notes")
+    suspend fun createNote(@Body note: NoteRequest): Response<NoteModel>
+
+    @PUT("notes/{id}")
+    suspend fun updateNote(@Path("id") id: String, @Body note: NoteRequest): Response<NoteModel>
+
+    @DELETE("notes/{id}")
+    suspend fun deleteNote(@Path("id") id: String): Response<Map<String, Any>>
+}
+
+object ApiClient {
+    private const val BASE_URL = "http://10.0.2.2:4000/"
+    val apiService: ApiService by lazy {
+        Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(ApiService::class.java)
+    }
+}
+
 
 class NotesActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,7 +66,9 @@ class NotesActivity : ComponentActivity() {
         setContent {
             Personal_SecretaryTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    NotesScreen()
+                    NotesScreen(
+                        onBack = { finish() }
+                    )
                 }
             }
         }
@@ -46,27 +77,38 @@ class NotesActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NotesScreen(modifier: Modifier = Modifier) {
+fun NotesScreen(modifier: Modifier = Modifier,
+     onBack: () -> Unit) {
     var notes by remember { mutableStateOf(listOf<NoteModel>()) }
     var isLoading by remember { mutableStateOf(true) }
     var showForm by remember { mutableStateOf(false) }
+    var selectedNote by remember { mutableStateOf<NoteModel?>(null) }
+
     val scope = rememberCoroutineScope()
 
-    // Fetch notes from backend
     LaunchedEffect(Unit) {
-        scope.launch {
-            try {
-                notes = NetworkClient.client.get("http://10.0.2.2:8080/notes").body()
-                Log.d("NotesFetch", "Received notes: $notes")
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                isLoading = false
-            }
+        isLoading = true
+        try {
+            notes = ApiClient.apiService.getNotes()
+            Log.d("NotesFetch", "Received notes: $notes")
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            isLoading = false
         }
     }
 
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Notes") },
+                navigationIcon = {
+                    IconButton(onClick = { onBack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = { showForm = true }) {
                 Icon(Icons.Default.Add, contentDescription = "Add Note")
@@ -81,72 +123,115 @@ fun NotesScreen(modifier: Modifier = Modifier) {
         ) {
             Text(text = "Notes", modifier = Modifier.padding(bottom = 12.dp))
 
-            if (isLoading) {
-                Text("Loading notes...")
-            } else if (notes.isEmpty()) {
-                Text("No notes found")
-            } else {
-                LazyColumn(
+            when {
+                isLoading -> Text("Loading notes...")
+                notes.isEmpty() -> Text("No notes found")
+                else -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
-                    items(notes) { note ->
-                        NoteItem(note)
+                    items(notes) {
+                        note -> NoteItem(note=note){
+                            selectedNote= note
+                    }
                     }
                 }
             }
         }
 
-        // Show form dialog
         if (showForm) {
             AddNoteDialog(
                 onDismiss = { showForm = false },
                 onSave = { newNote ->
                     scope.launch {
                         try {
-                            val response: HttpResponse = NetworkClient.client.post("http://10.0.2.2:8080/notes") {
-                                setBody(newNote)
-                            }
-                            if (response.status.value in 200..299) {
-                                // Refresh notes
-                                notes = NetworkClient.client.get("http://10.0.2.2:8080/notes").body()
+                            val noteToSend = newNote.copy(user = "guest")
+                            val response = ApiClient.apiService.createNote(noteToSend)
+                            if (response.isSuccessful) {
+
+                                notes = ApiClient.apiService.getNotes()
                                 Log.d("NotesSave", "Note saved successfully")
                             } else {
-                                Log.e("NotesSave", "Failed to save note: ${response.status}")
+                                Log.e("NotesSave", "Failed to save note: ${response.code()}")
                             }
                         } catch (e: Exception) {
                             e.printStackTrace()
+                        } finally {
+                            showForm = false
                         }
                     }
-                    showForm = false
+                }
+            )
+        }
+
+
+        selectedNote?.let { note ->
+            EditNoteDialog(
+                note = note,
+                onDismiss = { selectedNote = null },
+                onSave = { updatedNote ->
+                    scope.launch {
+                        try {
+
+                                val response = ApiClient.apiService.updateNote(note._id, updatedNote)
+                                if (response.isSuccessful) {
+
+                                    notes = ApiClient.apiService.getNotes()
+                                    Log.d("NotesEdit", "Note updated successfully")
+                                } else {
+                                    Log.e("NotesEdit", "Failed to update note: ${response.code()}")
+                                }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        } finally {
+                            selectedNote = null
+                        }
+                    }
+                },
+                onDelete = { noteToDelete ->
+                    scope.launch {
+                        try {
+                            val response = ApiClient.apiService.deleteNote(noteToDelete._id)
+                            if (response.isSuccessful) {
+                                notes = ApiClient.apiService.getNotes()
+                                Log.d("NotesDelete", "Note deleted successfully")
+                            } else {
+                                Log.e("NotesDelete", "Failed to delete note: ${response.code()}")
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        } finally {
+                            selectedNote = null
+                        }
+                    }
                 }
             )
         }
     }
 }
 
+
 @Composable
-fun NoteItem(note: NoteModel) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+fun NoteItem(note: NoteModel, onClick: () -> Unit) {
+    Card(modifier = Modifier
+        .fillMaxWidth()
+        .clickable { onClick()}
+    ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Text(text = note.date)
-                note.location?.let { loc ->
-                    Text(text = loc, maxLines = 1)
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = note.date)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(text = note.title, style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(4.dp))
             Text(text = note.description)
         }
     }
 }
 
+
 @Composable
 fun AddNoteDialog(onDismiss: () -> Unit, onSave: (NoteRequest) -> Unit) {
-    var id by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf("") }
-    var location by remember { mutableStateOf("") }
+    var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
 
     AlertDialog(
@@ -154,21 +239,30 @@ fun AddNoteDialog(onDismiss: () -> Unit, onSave: (NoteRequest) -> Unit) {
         title = { Text("Add Note") },
         text = {
             Column {
-                OutlinedTextField(value = id, onValueChange = { id = it }, label = { Text("ID") })
-                OutlinedTextField(value = date, onValueChange = { date = it }, label = { Text("Date") })
-                OutlinedTextField(value = location, onValueChange = { location = it }, label = { Text("Location") })
-                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") })
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Title") },
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description") },
+                    modifier = Modifier.height(150.dp)
+                )
             }
         },
         confirmButton = {
             Button(onClick = {
-                if (id.isNotBlank() && date.isNotBlank() && description.isNotBlank()) {
+                if (title.isNotBlank() && description.isNotBlank()) {
+                    val currentDate = LocalDate.now().toString()
                     onSave(
                         NoteRequest(
-                            id = id.toInt(),
-                            date = date,
-                            location = if (location.isBlank()) null else location,
-                            description = description
+                            title = title,
+                            description = description,
+                            date = currentDate
                         )
                     )
                 }
@@ -181,3 +275,61 @@ fun AddNoteDialog(onDismiss: () -> Unit, onSave: (NoteRequest) -> Unit) {
         }
     )
 }
+
+@Composable
+fun EditNoteDialog(
+    note: NoteModel,
+    onDismiss: () -> Unit,
+    onSave: (NoteRequest) -> Unit,
+    onDelete: (NoteModel) -> Unit
+) {
+    var title by remember { mutableStateOf(note.title) }
+    var description by remember { mutableStateOf(note.description) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Note") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Title") },
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description") },
+                    modifier = Modifier.height(150.dp)
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                if (title.isNotBlank() && description.isNotBlank()) {
+                    onSave(
+                        NoteRequest(
+                            title = title,
+                            description = description,
+                            date = note.date
+                        )
+                    )
+                }
+            }) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            Row {
+                Button(onClick = { onDelete(note) }) {
+                    Text("Delete")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(onClick = onDismiss) { Text("Cancel") }
+            }
+        }
+    )
+}
+
