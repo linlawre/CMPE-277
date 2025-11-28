@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -59,7 +61,9 @@ class NotesActivity : ComponentActivity() {
         setContent {
             Personal_SecretaryTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    NotesScreen()
+                    NotesScreen(
+                        onBack = { finish() }
+                    )
                 }
             }
         }
@@ -68,14 +72,14 @@ class NotesActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NotesScreen(modifier: Modifier = Modifier) {
+fun NotesScreen(modifier: Modifier = Modifier,
+     onBack: () -> Unit) {
     var notes by remember { mutableStateOf(listOf<NoteModel>()) }
     var isLoading by remember { mutableStateOf(true) }
     var showForm by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
 
-    // Fetch notes from backend
     LaunchedEffect(Unit) {
         isLoading = true
         try {
@@ -89,6 +93,16 @@ fun NotesScreen(modifier: Modifier = Modifier) {
     }
 
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Notes") },
+                navigationIcon = {
+                    IconButton(onClick = { onBack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = { showForm = true }) {
                 Icon(Icons.Default.Add, contentDescription = "Add Note")
