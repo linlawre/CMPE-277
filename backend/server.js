@@ -134,6 +134,33 @@ app.post("/notes", async (req, res) => {
 });
 
 
+app.put("/notes/:id", async (req, res) => {
+  try {
+    const noteId = req.params.id;
+    const { title, description, date } = req.body;
+
+    if (!title || !description || !date) {
+      return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
+
+    const updatedNote = await Note.findByIdAndUpdate(
+      noteId,
+      { title, description, date },
+      { new: true }
+    );
+
+    if (!updatedNote) {
+      return res.status(404).json({ success: false, message: "Note not found" });
+    }
+
+    res.json({ success: true, note: updatedNote });
+  } catch (err) {
+    console.error("Error updating note:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+
 
 
 // --- Start Server ---

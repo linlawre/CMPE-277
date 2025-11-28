@@ -5,13 +5,13 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -25,7 +25,6 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.*
 import java.time.LocalDate
 
-// -------------------- DATA CLASSES --------------------
 data class NoteRequest(
     val date: String,
     val user: String = "guest",
@@ -33,13 +32,16 @@ data class NoteRequest(
     val description: String
 )
 
-// -------------------- RETROFIT API --------------------
+
 interface ApiService {
     @GET("notes")
     suspend fun getNotes(): List<NoteModel>
 
     @POST("notes")
     suspend fun createNote(@Body note: NoteRequest): Response<NoteModel>
+
+    @PUT("notes/{id}")
+    suspend fun updateNote(@Path("id") id: String, @Body note: NoteRequest): Response<NoteModel>
 }
 
 object ApiClient {
@@ -77,6 +79,7 @@ fun NotesScreen(modifier: Modifier = Modifier,
     var notes by remember { mutableStateOf(listOf<NoteModel>()) }
     var isLoading by remember { mutableStateOf(true) }
     var showForm by remember { mutableStateOf(false) }
+    var selectedNote by remember { mutableStateOf<NoteModel?>(null) }
 
     val scope = rememberCoroutineScope()
 
@@ -125,7 +128,11 @@ fun NotesScreen(modifier: Modifier = Modifier,
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
-                    items(notes) { note -> NoteItem(note) }
+                    items(notes) {
+                        note -> NoteItem(note=note){
+                            selectedNote= note
+                    }
+                    }
                 }
             }
         }
@@ -139,7 +146,7 @@ fun NotesScreen(modifier: Modifier = Modifier,
                             val noteToSend = newNote.copy(user = "guest")
                             val response = ApiClient.apiService.createNote(noteToSend)
                             if (response.isSuccessful) {
-                                // Refresh notes after adding
+
                                 notes = ApiClient.apiService.getNotes()
                                 Log.d("NotesSave", "Note saved successfully")
                             } else {
@@ -154,13 +161,43 @@ fun NotesScreen(modifier: Modifier = Modifier,
                 }
             )
         }
+
+
+        selectedNote?.let { note ->
+            EditNoteDialog(
+                note = note,
+                onDismiss = { selectedNote = null },
+                onSave = { updatedNote ->
+                    scope.launch {
+                        try {
+
+                                val response = ApiClient.apiService.updateNote(note._id, updatedNote)
+                                if (response.isSuccessful) {
+
+                                    notes = ApiClient.apiService.getNotes()
+                                    Log.d("NotesEdit", "Note updated successfully")
+                                } else {
+                                    Log.e("NotesEdit", "Failed to update note: ${response.code()}")
+                                }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        } finally {
+                            selectedNote = null
+                        }
+                    }
+                }
+            )
+        }
     }
 }
 
 
 @Composable
-fun NoteItem(note: NoteModel) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+fun NoteItem(note: NoteModel, onClick: () -> Unit) {
+    Card(modifier = Modifier
+        .fillMaxWidth()
+        .clickable { onClick()}
+    ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(text = note.date)
             Spacer(modifier = Modifier.height(4.dp))
@@ -218,3 +255,54 @@ fun AddNoteDialog(onDismiss: () -> Unit, onSave: (NoteRequest) -> Unit) {
         }
     )
 }
+
+@Composable
+fun EditNoteDialog(
+    note: NoteModel,
+    onDismiss: () -> Unit,
+    onSave: (NoteRequest) -> Unit
+) {
+    var title by remember { mutableStateOf(note.title) }
+    var description by remember { mutableStateOf(note.description) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Note") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Title") },
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description") },
+                    modifier = Modifier.height(150.dp)
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                if (title.isNotBlank() && description.isNotBlank()) {
+                    onSave(
+                        NoteRequest(
+                            title = title,
+                            description = description,
+                            date = note.date
+                        )
+                    )
+                }
+            }) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+

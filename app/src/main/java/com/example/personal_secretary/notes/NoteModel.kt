@@ -5,6 +5,6 @@ data class NoteModel(
     val user: String? = null,
     val title: String,
     val description: String,
-    val _id: String?= null,
+    val _id: String,
     val __v: Int?=null
 )
