@@ -160,6 +160,19 @@ app.put("/notes/:id", async (req, res) => {
   }
 });
 
+app.delete("/notes/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const note = await Note.findByIdAndDelete(id);
+        if (!note) return res.status(404).json({ success: false, message: "Note not found" });
+
+        res.json({ success: true, message: "Note deleted" });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 
 
 

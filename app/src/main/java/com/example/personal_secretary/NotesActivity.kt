@@ -42,6 +42,9 @@ interface ApiService {
 
     @PUT("notes/{id}")
     suspend fun updateNote(@Path("id") id: String, @Body note: NoteRequest): Response<NoteModel>
+
+    @DELETE("notes/{id}")
+    suspend fun deleteNote(@Path("id") id: String): Response<Map<String, Any>>
 }
 
 object ApiClient {
@@ -185,6 +188,23 @@ fun NotesScreen(modifier: Modifier = Modifier,
                             selectedNote = null
                         }
                     }
+                },
+                onDelete = { noteToDelete ->
+                    scope.launch {
+                        try {
+                            val response = ApiClient.apiService.deleteNote(noteToDelete._id)
+                            if (response.isSuccessful) {
+                                notes = ApiClient.apiService.getNotes()
+                                Log.d("NotesDelete", "Note deleted successfully")
+                            } else {
+                                Log.e("NotesDelete", "Failed to delete note: ${response.code()}")
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        } finally {
+                            selectedNote = null
+                        }
+                    }
                 }
             )
         }
@@ -260,7 +280,8 @@ fun AddNoteDialog(onDismiss: () -> Unit, onSave: (NoteRequest) -> Unit) {
 fun EditNoteDialog(
     note: NoteModel,
     onDismiss: () -> Unit,
-    onSave: (NoteRequest) -> Unit
+    onSave: (NoteRequest) -> Unit,
+    onDelete: (NoteModel) -> Unit
 ) {
     var title by remember { mutableStateOf(note.title) }
     var description by remember { mutableStateOf(note.description) }
@@ -301,7 +322,13 @@ fun EditNoteDialog(
             }
         },
         dismissButton = {
-            Button(onClick = onDismiss) { Text("Cancel") }
+            Row {
+                Button(onClick = { onDelete(note) }) {
+                    Text("Delete")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(onClick = onDismiss) { Text("Cancel") }
+            }
         }
     )
 }
