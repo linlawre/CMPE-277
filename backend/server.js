@@ -174,6 +174,49 @@ app.delete("/notes/:id", async (req, res) => {
 });
 
 
+/**
+Tasks Routes
+**/
+const taskSchema = new mongoose.Schema({
+  description: { type: String, required: true },
+  location: { type: String, default: null },
+  date: { type: String, required: true },
+  done: { type: Boolean, default: false },
+});
+
+const Task = mongoose.model('Task', taskSchema);
+
+app.get('/tasks', async (req, res) => {
+  const tasks = await Task.find();
+  res.json(tasks);
+});
+
+
+app.post('/tasks', async (req, res) => {
+  const { description, location, date, done } = req.body;
+  if (!description || !date) return res.status(400).json({ success: false, message: "Missing required fields" });
+  const task = new Task({ description, location, date, done });
+  await task.save();
+  res.json(task);
+});
+
+
+app.put('/tasks/:id', async (req, res) => {
+  const { id } = req.params;
+  const { description, location, done } = req.body;
+  const task = await Task.findByIdAndUpdate(id, { description, location, done }, { new: true });
+  if (!task) return res.status(404).json({ success: false, message: "Task not found" });
+  res.json(task);
+});
+
+
+app.delete('/tasks/:id', async (req, res) => {
+  const { id } = req.params;
+  const task = await Task.findByIdAndDelete(id);
+  if (!task) return res.status(404).json({ success: false, message: "Task not found" });
+  res.json({ success: true });
+});
+
 
 
 // --- Start Server ---
