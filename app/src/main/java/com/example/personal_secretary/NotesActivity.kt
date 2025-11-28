@@ -16,19 +16,41 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.personal_secretary.notes.NoteModel
 import com.example.personal_secretary.ui.theme.Personal_SecretaryTheme
-import io.ktor.client.call.*
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
 import kotlinx.coroutines.launch
-import kotlinx.serialization.Serializable
+import retrofit2.Response
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.http.*
+import java.time.LocalDate
 
-@Serializable
+// -------------------- DATA CLASSES --------------------
 data class NoteRequest(
-    val id: Int,
     val date: String,
-    val location: String? = null,
+    val user: String = "guest",
+    val title: String,
     val description: String
 )
+
+// -------------------- RETROFIT API --------------------
+interface ApiService {
+    @GET("notes")
+    suspend fun getNotes(): List<NoteModel>
+
+    @POST("notes")
+    suspend fun createNote(@Body note: NoteRequest): Response<NoteModel>
+}
+
+object ApiClient {
+    private const val BASE_URL = "http://10.0.2.2:4000/"
+    val apiService: ApiService by lazy {
+        Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(ApiService::class.java)
+    }
+}
+
 
 class NotesActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,19 +72,19 @@ fun NotesScreen(modifier: Modifier = Modifier) {
     var notes by remember { mutableStateOf(listOf<NoteModel>()) }
     var isLoading by remember { mutableStateOf(true) }
     var showForm by remember { mutableStateOf(false) }
+
     val scope = rememberCoroutineScope()
 
     // Fetch notes from backend
     LaunchedEffect(Unit) {
-        scope.launch {
-            try {
-                notes = NetworkClient.client.get("http://10.0.2.2:8080/notes").body()
-                Log.d("NotesFetch", "Received notes: $notes")
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                isLoading = false
-            }
+        isLoading = true
+        try {
+            notes = ApiClient.apiService.getNotes()
+            Log.d("NotesFetch", "Received notes: $notes")
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            isLoading = false
         }
     }
 
@@ -81,72 +103,64 @@ fun NotesScreen(modifier: Modifier = Modifier) {
         ) {
             Text(text = "Notes", modifier = Modifier.padding(bottom = 12.dp))
 
-            if (isLoading) {
-                Text("Loading notes...")
-            } else if (notes.isEmpty()) {
-                Text("No notes found")
-            } else {
-                LazyColumn(
+            when {
+                isLoading -> Text("Loading notes...")
+                notes.isEmpty() -> Text("No notes found")
+                else -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
-                    items(notes) { note ->
-                        NoteItem(note)
-                    }
+                    items(notes) { note -> NoteItem(note) }
                 }
             }
         }
 
-        // Show form dialog
         if (showForm) {
             AddNoteDialog(
                 onDismiss = { showForm = false },
                 onSave = { newNote ->
                     scope.launch {
                         try {
-                            val response: HttpResponse = NetworkClient.client.post("http://10.0.2.2:8080/notes") {
-                                setBody(newNote)
-                            }
-                            if (response.status.value in 200..299) {
-                                // Refresh notes
-                                notes = NetworkClient.client.get("http://10.0.2.2:8080/notes").body()
+                            val noteToSend = newNote.copy(user = "guest")
+                            val response = ApiClient.apiService.createNote(noteToSend)
+                            if (response.isSuccessful) {
+                                // Refresh notes after adding
+                                notes = ApiClient.apiService.getNotes()
                                 Log.d("NotesSave", "Note saved successfully")
                             } else {
-                                Log.e("NotesSave", "Failed to save note: ${response.status}")
+                                Log.e("NotesSave", "Failed to save note: ${response.code()}")
                             }
                         } catch (e: Exception) {
                             e.printStackTrace()
+                        } finally {
+                            showForm = false
                         }
                     }
-                    showForm = false
                 }
             )
         }
     }
 }
 
+
 @Composable
 fun NoteItem(note: NoteModel) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Text(text = note.date)
-                note.location?.let { loc ->
-                    Text(text = loc, maxLines = 1)
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = note.date)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(text = note.title, style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(4.dp))
             Text(text = note.description)
         }
     }
 }
 
+
 @Composable
 fun AddNoteDialog(onDismiss: () -> Unit, onSave: (NoteRequest) -> Unit) {
-    var id by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf("") }
-    var location by remember { mutableStateOf("") }
+    var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
 
     AlertDialog(
@@ -154,21 +168,30 @@ fun AddNoteDialog(onDismiss: () -> Unit, onSave: (NoteRequest) -> Unit) {
         title = { Text("Add Note") },
         text = {
             Column {
-                OutlinedTextField(value = id, onValueChange = { id = it }, label = { Text("ID") })
-                OutlinedTextField(value = date, onValueChange = { date = it }, label = { Text("Date") })
-                OutlinedTextField(value = location, onValueChange = { location = it }, label = { Text("Location") })
-                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") })
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Title") },
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description") },
+                    modifier = Modifier.height(150.dp)
+                )
             }
         },
         confirmButton = {
             Button(onClick = {
-                if (id.isNotBlank() && date.isNotBlank() && description.isNotBlank()) {
+                if (title.isNotBlank() && description.isNotBlank()) {
+                    val currentDate = LocalDate.now().toString()
                     onSave(
                         NoteRequest(
-                            id = id.toInt(),
-                            date = date,
-                            location = if (location.isBlank()) null else location,
-                            description = description
+                            title = title,
+                            description = description,
+                            date = currentDate
                         )
                     )
                 }
