@@ -134,6 +134,31 @@ fun WeatherCardHome() {
     }
 }
 
+@Composable
+fun SummaryHome() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "Placeholder for my summary home WIP",
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+        }
+    }
+}
+
 
 @Composable
 fun HomeScreen(checkMicrophonePermission: () -> Unit) {
@@ -254,6 +279,7 @@ fun HomeScreen(checkMicrophonePermission: () -> Unit) {
             Button(onClick = checkMicrophonePermission) {
                 Text("Enable Microphone")
             }
+            SummaryHome()
 
             Spacer(modifier = Modifier.height(24.dp))
 
