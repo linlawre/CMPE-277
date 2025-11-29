@@ -41,6 +41,10 @@
             android:name=".SignupActivity"
             android:exported="true"
             android:label="Sign Up" />
+        <activity
+            android:name=".PlaidActivity"
+            android:exported="true"
+            android:label="Budgeting" />
 
     </application>
 

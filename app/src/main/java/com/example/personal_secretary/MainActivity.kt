@@ -239,7 +239,9 @@ fun HomeScreen(checkMicrophonePermission: () -> Unit) {
                     //This button wont work yet, I still need to put in my plaid API call
                     NavButton(
                         selected = selectedTab == 3,
-                        onClick = { selectedTab = 3 },
+                        onClick = { selectedTab = 3
+                                  context.startActivity(Intent(context,PlaidActivity::class.java))
+                                  },
                         icon = Icons.Default.AttachMoney,
                         label = "Budget"
                     )

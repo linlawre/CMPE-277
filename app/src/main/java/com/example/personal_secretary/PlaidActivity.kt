@@ -1,0 +1,334 @@
+package com.example.personal_secretary
+
+import android.content.Context
+import android.os.Bundle
+import android.util.Log
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.personal_secretary.ui.theme.Personal_SecretaryTheme
+import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.Response
+import retrofit2.Retrofit
+import retrofit2.http.Body
+import retrofit2.http.POST
+import retrofit2.http.Url
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Properties
+
+class PlaidActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            Personal_SecretaryTheme {
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    PlaidScreen(onBack = { finish() })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PlaidScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var transactions by remember { mutableStateOf<List<PlaidTransaction>>(emptyList()) }
+    var weeklyTotal by remember { mutableStateOf(0.0) }
+    var monthlyTotal by remember { mutableStateOf(0.0) }
+    var aiResponse by remember { mutableStateOf("Loading AI advice...") }
+
+    LaunchedEffect(Unit) {
+        loading = true
+        error = null
+        try {
+            val accessToken = createPlaidSandboxItem(context)
+            val end = LocalDate.now()
+            val start = end.minusDays(90)
+            val fmt = DateTimeFormatter.ISO_DATE
+            val list = getPlaidTransactionsWithRetry(context, accessToken, start.format(fmt), end.format(fmt))
+            transactions = list.sortedByDescending { it.date }.take(30)
+            weeklyTotal = computeWeeklyTotal(transactions)
+            monthlyTotal = computeMonthlyTotal(transactions)
+            val recentTx = transactions.filter { LocalDate.parse(it.date) >= LocalDate.now().minusDays(7) }
+            val promptText = buildString {
+                append("Rate my spending and give me advice.\n")
+                append("Note that the information I give you is all that I can give you.\n")
+                append("Weekly total: $${"%.2f".format(weeklyTotal)}\n")
+                append("Monthly total: $${"%.2f".format(monthlyTotal)}\n")
+                append("Transactions in past 7 days:\n")
+                recentTx.forEach { tx ->
+                    append("- ${tx.date}: ${tx.name} $${"%.2f".format(tx.amount)}\n")
+                }
+            }
+            scope.launch {
+                aiResponse = sendToBackend(context, promptText)
+            }
+        } catch (e: Exception) {
+            error = e.localizedMessage ?: "Unknown error"
+            Log.e("PLAID_DEBUG", "Error loading sandbox data", e)
+        } finally {
+            loading = false
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = 32.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)
+    ) {
+        TextButton(onClick = onBack) { Text("< Back", style = MaterialTheme.typography.bodyMedium) }
+        Spacer(Modifier.height(12.dp))
+        Text("Plaid Sandbox Demo", style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(12.dp))
+        if (loading) {
+            Column(
+                modifier = Modifier.fillMaxWidth().height(200.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                CircularProgressIndicator()
+                Spacer(Modifier.height(8.dp))
+                Text("Loading sandboxed data from Plaid (Beta feature)")
+            }
+        }
+        error?.let { Text(it, color = Color.Red) }
+        if (!loading && error == null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                SummaryCardDynamic("Weekly total", weeklyTotal, Color(0xFFB3E5FC))
+                SummaryCardDynamic("Monthly total", monthlyTotal, Color(0xFFFFF9C4))
+            }
+            Spacer(Modifier.height(8.dp))
+            val scrollState = rememberScrollState()
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(250.dp)
+                    .background(Color.LightGray.copy(alpha = 0.2f), shape = MaterialTheme.shapes.medium)
+                    .padding(16.dp)
+                    .verticalScroll(scrollState),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(aiResponse, color = Color.DarkGray.copy(alpha = 0.8f), style = MaterialTheme.typography.bodyLarge)
+            }
+            Spacer(Modifier.height(12.dp))
+            Text("Transactions", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(8.dp))
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(transactions) { tx -> TransactionRow(tx) }
+            }
+        }
+    }
+}
+
+@Composable
+fun SummaryCardDynamic(label: String, amount: Double, backgroundColor: Color) {
+    val amountText = "$${"%.2f".format(amount)}"
+    val cardWidth = (label.length.coerceAtLeast(amountText.length) * 7).dp + 32.dp
+    Card(
+        modifier = Modifier.widthIn(min = cardWidth),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor)
+    ) {
+        Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(label, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(4.dp))
+            Text(amountText, style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp), textAlign = TextAlign.Center)
+        }
+    }
+}
+
+@Composable
+fun TransactionRow(tx: PlaidTransaction) {
+    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Row(modifier = Modifier.padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Column {
+                Text(tx.name, style = MaterialTheme.typography.bodyMedium)
+                Text(tx.date, style = MaterialTheme.typography.bodySmall)
+            }
+            Text("$${"%.2f".format(tx.amount)}", style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+private fun Context.getConfigValue(key: String): String? {
+    val props = Properties()
+    return try {
+        val input = resources.openRawResource(R.raw.config)
+        props.load(input)
+        input.close()
+        props.getProperty(key)
+    } catch (e: Exception) {
+        Log.e("CONFIG", "Error loading config", e)
+        null
+    }
+}
+
+@Serializable
+data class BackendRequest(val prompt: String)
+
+@Serializable
+data class BackendResponse(val response: String)
+
+interface BackendApi {
+    @POST
+    suspend fun sendPrompt(@Url url: String, @Body body: BackendRequest): Response<BackendResponse>
+}
+
+suspend fun sendToBackend(context: Context, prompt: String): String {
+    val backendUrl = context.getConfigValue("BACKEND_URL") ?: throw Exception("BACKEND_URL not set")
+
+    val contentType = "application/json".toMediaType()
+    val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }
+    val client = OkHttpClient.Builder()
+        .addInterceptor(logging)
+        .connectTimeout(200, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(240, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(240, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
+
+    val retrofit = Retrofit.Builder()
+        .baseUrl("https://dummy.com/")
+        .client(client)
+        .addConverterFactory(Json { ignoreUnknownKeys = true }.asConverterFactory(contentType))
+        .build()
+
+    val api = retrofit.create(BackendApi::class.java)
+
+    return try {
+        val response = api.sendPrompt(backendUrl, BackendRequest(prompt))
+        if (response.isSuccessful) {
+            response.body()?.response ?: "Empty response"
+        } else {
+            "Error: ${response.code()} ${response.message()}"
+        }
+    } catch (e: Exception) {
+        "Error fetching AI response: ${e.localizedMessage}"
+    }
+}
+
+@Serializable
+data class SandboxPublicTokenRequest(val client_id: String, val secret: String, val institution_id: String, val initial_products: List<String>)
+
+@Serializable
+data class SandboxPublicTokenResponse(val public_token: String? = null)
+
+@Serializable
+data class PublicTokenExchangeRequest(val client_id: String, val secret: String, val public_token: String)
+
+@Serializable
+data class PublicTokenExchangeResponse(val access_token: String? = null)
+
+@Serializable
+data class TransactionsGetRequest(val client_id: String, val secret: String, val access_token: String, val start_date: String, val end_date: String, val options: TransactionsGetOptions)
+
+@Serializable
+data class TransactionsGetOptions(val count: Int, val offset: Int = 0)
+
+@Serializable
+data class TransactionsGetResponse(val transactions: List<PlaidTransactionRaw> = emptyList())
+
+@Serializable
+data class PlaidTransactionRaw(val name: String? = null, val amount: Double? = null, val date: String? = null, val category: List<String>? = null)
+
+interface PlaidApi {
+    @POST("sandbox/public_token/create")
+    suspend fun createSandboxToken(@Body body: SandboxPublicTokenRequest): SandboxPublicTokenResponse
+
+    @POST("item/public_token/exchange")
+    suspend fun exchangePublicToken(@Body body: PublicTokenExchangeRequest): PublicTokenExchangeResponse
+
+    @POST("transactions/get")
+    suspend fun getTransactions(@Body body: TransactionsGetRequest): TransactionsGetResponse
+}
+
+private suspend fun createPlaidSandboxItem(context: Context): String {
+    val clientId = context.getConfigValue("PLAID_CLIENT_ID")!!
+    val secret = context.getConfigValue("PLAID_SECRET")!!
+    val contentType = "application/json".toMediaType()
+    val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }
+    val client = OkHttpClient.Builder().addInterceptor(logging).build()
+    val retrofit = Retrofit.Builder()
+        .baseUrl("https://sandbox.plaid.com/")
+        .client(client)
+        .addConverterFactory(Json { ignoreUnknownKeys = true }.asConverterFactory(contentType))
+        .build()
+    val api = retrofit.create(PlaidApi::class.java)
+    val req = SandboxPublicTokenRequest(clientId, secret, "ins_109508", listOf("transactions"))
+    val publicResp = api.createSandboxToken(req)
+    val publicToken = publicResp.public_token ?: throw Exception("Plaid did not return public_token")
+    val exchangeReq = PublicTokenExchangeRequest(clientId, secret, publicToken)
+    val exchangeResp = api.exchangePublicToken(exchangeReq)
+    return exchangeResp.access_token ?: throw Exception("Plaid did not return access_token")
+}
+
+private suspend fun getPlaidTransactions(context: Context, accessToken: String, startDate: String, endDate: String, count: Int = 30, offset: Int = 0): List<PlaidTransaction> {
+    val clientId = context.getConfigValue("PLAID_CLIENT_ID")!!
+    val secret = context.getConfigValue("PLAID_SECRET")!!
+    val contentType = "application/json".toMediaType()
+    val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }
+    val client = OkHttpClient.Builder().addInterceptor(logging).build()
+    val retrofit = Retrofit.Builder()
+        .baseUrl("https://sandbox.plaid.com/")
+        .client(client)
+        .addConverterFactory(Json { ignoreUnknownKeys = true }.asConverterFactory(contentType))
+        .build()
+    val api = retrofit.create(PlaidApi::class.java)
+    val req = TransactionsGetRequest(clientId, secret, accessToken, startDate, endDate, TransactionsGetOptions(count.coerceIn(1,30), offset))
+    val rawResp = api.getTransactions(req)
+    return rawResp.transactions.map { PlaidTransaction(it.name ?: "Unknown", it.amount ?: 0.0, it.date ?: "", it.category) }
+}
+
+private suspend fun getPlaidTransactionsWithRetry(context: Context, accessToken: String, startDate: String, endDate: String): List<PlaidTransaction> {
+    var attempts = 0
+    val maxAttempts = 10
+    while (attempts < maxAttempts) {
+        try {
+            return getPlaidTransactions(context, accessToken, startDate, endDate)
+        } catch (e: Exception) {
+            attempts++
+            delay(5000L)
+        }
+    }
+    throw Exception("Transactions product not ready after $maxAttempts attempts")
+}
+
+private fun computeWeeklyTotal(list: List<PlaidTransaction>): Double {
+    val cutoff = LocalDate.now().minusDays(7)
+    return list.filter { LocalDate.parse(it.date) >= cutoff }.sumOf { it.amount }
+}
+
+private fun computeMonthlyTotal(list: List<PlaidTransaction>): Double {
+    val cutoff = LocalDate.now().minusMonths(1)
+    return list.filter { LocalDate.parse(it.date) >= cutoff }.sumOf { it.amount }
+}
+
+data class PlaidTransaction(val name: String, val amount: Double, val date: String, val category: List<String>? = null)
