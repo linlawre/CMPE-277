@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,6 +26,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.personal_secretary.ui.theme.Personal_SecretaryTheme
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.shape.*
 
 class MainActivity : ComponentActivity() {
 
@@ -60,6 +63,72 @@ class MainActivity : ComponentActivity() {
             }
             else -> {
                 requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        }
+    }
+}
+@Composable
+fun WeatherCardHome() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var weatherText by remember { mutableStateOf("Loading weather...") }
+    var isLoading by remember { mutableStateOf(true) }
+
+    val requestPermissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                scope.launch {
+                    fetchWeather(context) { result ->
+                        weatherText = result
+                        isLoading = false
+                    }
+                }
+            } else {
+                weatherText = "Location permission denied"
+                isLoading = false
+            }
+        }
+
+    LaunchedEffect(Unit) {
+        val permission = Manifest.permission.ACCESS_FINE_LOCATION
+        if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
+            scope.launch {
+                fetchWeather(context) { result ->
+                    weatherText = result
+                    isLoading = false
+                }
+            }
+        } else {
+            requestPermissionLauncher.launch(permission)
+        }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "Today's Weather",
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+            } else {
+                Text(
+                    text = weatherText,
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
         }
     }
@@ -170,7 +239,7 @@ fun HomeScreen(checkMicrophonePermission: () -> Unit) {
                 .padding(innerPadding)
                 .fillMaxSize()
                 .padding(24.dp),
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Top
         ) {
             Text(
                 "Welcome to your Personal Secretary",
@@ -179,6 +248,7 @@ fun HomeScreen(checkMicrophonePermission: () -> Unit) {
             // I believe we should do a summarized view here, most likely will add my OpenAI calls here too.
 
             Spacer(modifier = Modifier.height(24.dp))
+            WeatherCardHome()
 
             //This one we might not keep on this page, maybe throw it into the notes/task section
             Button(onClick = checkMicrophonePermission) {

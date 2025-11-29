@@ -1,0 +1,216 @@
+package com.example.personal_secretary
+
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import com.example.personal_secretary.ui.theme.Personal_SecretaryTheme
+import com.google.android.gms.location.LocationServices
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
+import retrofit2.Retrofit
+import retrofit2.http.GET
+import retrofit2.http.Query
+import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+
+class WeatherActivity : ComponentActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            Personal_SecretaryTheme {
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    WeatherCard()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun WeatherCard() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var weatherText by remember { mutableStateOf("Loading weather...") }
+    var isLoading by remember { mutableStateOf(true) }
+
+    val requestPermissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                scope.launch {
+                    fetchWeather(context) { result ->
+                        weatherText = result
+                        isLoading = false
+                    }
+                }
+            } else {
+                weatherText = "Location permission denied"
+                isLoading = false
+            }
+        }
+
+    LaunchedEffect(Unit) {
+        val permission = Manifest.permission.ACCESS_FINE_LOCATION
+        if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
+            scope.launch {
+                fetchWeather(context) { result ->
+                    weatherText = result
+                    isLoading = false
+                }
+            }
+        } else {
+            requestPermissionLauncher.launch(permission)
+        }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "Today's Weather",
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+            } else {
+                Text(
+                    text = weatherText,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+    }
+}
+
+// Retrofit API
+interface WeatherApi {
+    @GET("onecall/day_summary")
+    suspend fun getDaySummary(
+        @Query("lat") lat: Double,
+        @Query("lon") lon: Double,
+        @Query("date") date: String,
+        @Query("appid") apiKey: String,
+        @Query("units") units: String = "imperial"
+    ): DaySummaryResponse
+}
+
+suspend fun fetchWeather(context: Context, onResult: (String) -> Unit) {
+    try {
+        val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+        val location = fusedLocationClient.lastLocation.await()
+
+        if (location != null) {
+            val lat = location.latitude
+            val lon = location.longitude
+            val apiKey = context.getApiKey("OPENWEATHERMAP_API_KEY") ?: ""
+
+            val contentType = "application/json".toMediaType()
+            val retrofit = Retrofit.Builder()
+                .baseUrl("https://api.openweathermap.org/data/3.0/")
+                .addConverterFactory(Json { ignoreUnknownKeys = true }.asConverterFactory(contentType))
+                .build()
+
+            val api = retrofit.create(WeatherApi::class.java)
+
+            val today = LocalDate.now().format(DateTimeFormatter.ISO_DATE)
+            val response = api.getDaySummary(lat, lon, today, apiKey)
+
+            val tempMin = response.temperature.min
+            val tempMax = response.temperature.max
+            val humidityAfternoon = response.humidity.afternoon
+            val cloudAfternoon = response.cloud_cover.afternoon
+
+            onResult(
+                "Min Temperature: $tempMin F\n" +
+                        "Max Temperature: $tempMax F\n" +
+                        "Afternoon Humidity: $humidityAfternoon%\n" +
+                        "Afternoon Cloud Cover: $cloudAfternoon%"
+            )
+        } else {
+            onResult("Unable to get location (emulator may not provide one)")
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        onResult("Error fetching weather: ${e.localizedMessage}")
+    }
+}
+
+// Helper to read API key
+fun Context.getApiKey(key: String): String? {
+    return try {
+        val props = java.util.Properties()
+        val inputStream = resources.openRawResource(R.raw.config)
+        props.load(inputStream)
+        inputStream.close()
+        val value = props.getProperty(key)
+        if (value.isNullOrEmpty()) {
+            println("⚠️ API key '$key' not found in config.properties")
+        }
+        value
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
+// Data classes
+@Serializable
+data class DaySummaryResponse(
+    val lat: Double,
+    val lon: Double,
+    val date: String,
+    val temperature: Temperature,
+    val humidity: Humidity,
+    val cloud_cover: CloudCover
+)
+
+@Serializable
+data class Temperature(
+    val min: Float,
+    val max: Float,
+    val afternoon: Float,
+    val night: Float,
+    val evening: Float,
+    val morning: Float
+)
+
+@Serializable
+data class Humidity(
+    val afternoon: Float
+)
+
+@Serializable
+data class CloudCover(
+    val afternoon: Float
+)
