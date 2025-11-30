@@ -29,7 +29,9 @@ import androidx.core.content.ContextCompat
 import com.example.personal_secretary.ui.theme.Personal_SecretaryTheme
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.shape.*
+import androidx.compose.material.icons.filled.CalendarViewWeek
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Today
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -168,26 +170,110 @@ fun WeatherCardHome() {
 }
 
 @Composable
-fun SummaryHome() {
+fun SummaryHomeDaily() {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 12.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
-        Column(
+        Box(
             modifier = Modifier
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF64B5F6),
+                            Color(0xFF1976D2)
+                        )
+                    )
+                )
+                .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            Text(
-                text = "Placeholder for my summary home WIP",
-                style = MaterialTheme.typography.titleMedium
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Today,
+                    contentDescription = "Default Today",
+                    tint = Color.White,
+                    modifier = Modifier.size(48.dp)
+                )
 
-            Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.width(16.dp))
 
+                Column {
+                    Text(
+                        text = "Daily Overview",
+                        style = MaterialTheme.typography.titleMedium.copy(color = Color.White)
+                    )
+                        Text(
+                            text = "Placeholder for AI Call summary",
+                            style = MaterialTheme.typography.titleMedium.copy(color = Color.White)
+                        )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SummaryHomeWeekly() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF64B5F6),
+                            Color(0xFF1976D2)
+                        )
+                    )
+                )
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CalendarViewWeek,
+                    contentDescription = "Default Week",
+                    tint = Color.White,
+                    modifier = Modifier.size(48.dp)
+                )
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Column {
+                    Text(
+                        text = "Weekly Overview",
+                        style = MaterialTheme.typography.titleMedium.copy(color = Color.White)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Placeholder for AI Call summary",
+                        style = MaterialTheme.typography.titleMedium.copy(color = Color.White)
+                    )
+
+                }
+            }
         }
     }
 }
@@ -314,7 +400,7 @@ fun HomeScreen(checkMicrophonePermission: () -> Unit) {
             Button(onClick = checkMicrophonePermission) {
                 Text("Enable Microphone")
             }
-            SummaryHome()
+            SummaryHomeDaily()
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -327,6 +413,8 @@ fun HomeScreen(checkMicrophonePermission: () -> Unit) {
             ) {
                 Text("Open Login Page")
             }
+
+            SummaryHomeWeekly()
         }
     }
 }
