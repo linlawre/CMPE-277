@@ -30,14 +30,16 @@ data class TaskModel(
     val date: String,
     val description: String,
     val location: String? = null,
-    val done: Boolean = false
+    val done: Boolean = false,
+    val user:String="guest"
 )
 
 data class TaskRequest(
     val description: String,
     val location: String? = null,
     val date: String = LocalDate.now().toString(),
-    val done: Boolean = false
+    val done: Boolean = false,
+    val user: String ="guest"
 )
 
 
@@ -68,13 +70,19 @@ object TaskApiClient {
 
 
 class TasksActivity : ComponentActivity() {
+
+    private lateinit var email: String
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        email = intent.getStringExtra("EMAIL").toString()
+        Log.d("NotesActivity", "Current email: $email")
         setContent {
             Personal_SecretaryTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    TasksScreen(onBack = { finish() })
+                    TasksScreen(
+                        email = email,
+                        onBack = { finish() })
                 }
             }
         }
@@ -84,7 +92,10 @@ class TasksActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TasksScreen(modifier: Modifier = Modifier, onBack: () -> Unit) {
+fun TasksScreen(
+    email:String,
+    modifier: Modifier = Modifier,
+    onBack: () -> Unit) {
     var tasks by remember { mutableStateOf(listOf<TaskModel>()) }
     var isLoading by remember { mutableStateOf(true) }
     var showForm by remember { mutableStateOf(false) }
@@ -95,7 +106,7 @@ fun TasksScreen(modifier: Modifier = Modifier, onBack: () -> Unit) {
     LaunchedEffect(Unit) {
         isLoading = true
         try {
-            tasks = TaskApiClient.apiService.getTasks()
+            tasks = TaskApiClient.apiService.getTasks().filter {it.user==email}
         } catch (e: Exception) {
             e.printStackTrace()
         } finally {
@@ -160,13 +171,14 @@ fun TasksScreen(modifier: Modifier = Modifier, onBack: () -> Unit) {
 
         if (showForm) {
             AddTaskDialog(
+                email=email,
                 onDismiss = { showForm = false },
                 onSave = { newTask ->
                     scope.launch {
                         try {
                             val response = TaskApiClient.apiService.createTask(newTask)
                             if (response.isSuccessful) {
-                                tasks = TaskApiClient.apiService.getTasks()
+                                tasks = TaskApiClient.apiService.getTasks().filter {it.user==email}
                             }
                         } catch (e: Exception) {
                             e.printStackTrace()
@@ -180,14 +192,16 @@ fun TasksScreen(modifier: Modifier = Modifier, onBack: () -> Unit) {
 
         selectedTask?.let { task ->
             EditTaskDialog(
+                email=email,
                 task = task,
                 onDismiss = { selectedTask = null },
                 onSave = { updatedTask ->
                     scope.launch {
                         try {
-                            val response = TaskApiClient.apiService.updateTask(task._id, updatedTask)
+                            val taskToSend = updatedTask.copy(user=email)
+                            val response = TaskApiClient.apiService.updateTask(task._id, taskToSend)
                             if (response.isSuccessful) {
-                                tasks = TaskApiClient.apiService.getTasks()
+                                tasks = TaskApiClient.apiService.getTasks().filter {it.user==email}
                             }
                         } catch (e: Exception) {
                             e.printStackTrace()
@@ -201,7 +215,7 @@ fun TasksScreen(modifier: Modifier = Modifier, onBack: () -> Unit) {
                         try {
                             val response = TaskApiClient.apiService.deleteTask(taskToDelete._id)
                             if (response.isSuccessful) {
-                                tasks = TaskApiClient.apiService.getTasks()
+                                tasks = TaskApiClient.apiService.getTasks().filter{it.user==email}
                             }
                         } catch (e: Exception) {
                             e.printStackTrace()
@@ -238,7 +252,10 @@ fun TaskItem(task: TaskModel, onToggleDone: (TaskModel) -> Unit, onClick: () -> 
 }
 
 @Composable
-fun AddTaskDialog(onDismiss: () -> Unit, onSave: (TaskRequest) -> Unit) {
+fun AddTaskDialog(
+    email:String,
+    onDismiss: () -> Unit,
+    onSave: (TaskRequest) -> Unit) {
     var description by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
 
@@ -263,7 +280,7 @@ fun AddTaskDialog(onDismiss: () -> Unit, onSave: (TaskRequest) -> Unit) {
         confirmButton = {
             Button(onClick = {
                 if (description.isNotBlank()) {
-                    onSave(TaskRequest(description = description, location = location.ifBlank { null }))
+                    onSave(TaskRequest(description = description, location = location.ifBlank { null }, user=email))
                 }
             }) {
                 Text("Save")
@@ -276,6 +293,7 @@ fun AddTaskDialog(onDismiss: () -> Unit, onSave: (TaskRequest) -> Unit) {
 @Composable
 fun EditTaskDialog(
     task: TaskModel,
+    email:String,
     onDismiss: () -> Unit,
     onSave: (TaskRequest) -> Unit,
     onDelete: (TaskModel) -> Unit
@@ -304,7 +322,7 @@ fun EditTaskDialog(
         confirmButton = {
             Button(onClick = {
                 if (description.isNotBlank()) {
-                    onSave(TaskRequest(description = description, location = location.ifBlank { null }))
+                    onSave(TaskRequest(description = description, location = location.ifBlank { null }, user=email))
                 }
             }) {
                 Text("Save")

@@ -182,6 +182,7 @@ const taskSchema = new mongoose.Schema({
   location: { type: String, default: null },
   date: { type: String, required: true },
   done: { type: Boolean, default: false },
+  user: { type:String,required:true}
 });
 
 const Task = mongoose.model('Task', taskSchema);
@@ -193,9 +194,9 @@ app.get('/tasks', async (req, res) => {
 
 
 app.post('/tasks', async (req, res) => {
-  const { description, location, date, done } = req.body;
+  const { description, location, date, done,user } = req.body;
   if (!description || !date) return res.status(400).json({ success: false, message: "Missing required fields" });
-  const task = new Task({ description, location, date, done });
+  const task = new Task({ description, location, date, done,user });
   await task.save();
   res.json(task);
 });
@@ -203,8 +204,12 @@ app.post('/tasks', async (req, res) => {
 
 app.put('/tasks/:id', async (req, res) => {
   const { id } = req.params;
-  const { description, location, done } = req.body;
-  const task = await Task.findByIdAndUpdate(id, { description, location, done }, { new: true });
+  const { description, location, done, user } = req.body;
+  const task = await Task.findByIdAndUpdate(
+    id,
+    { description, location, done, user },
+    { new: true }
+  );
   if (!task) return res.status(404).json({ success: false, message: "Task not found" });
   res.json(task);
 });
@@ -217,6 +222,19 @@ app.delete('/tasks/:id', async (req, res) => {
   res.json({ success: true });
 });
 
+app.get('/debug/tasks', async (req, res) => {
+  try {
+    const tasks = await Task.find();
+    res.json({
+      success: true,
+      count: tasks.length,
+      tasks: tasks
+    });
+  } catch (err) {
+    console.error("Error fetching tasks:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
 
 
 // --- Start Server ---

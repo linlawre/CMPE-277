@@ -35,6 +35,10 @@ import androidx.compose.material.icons.filled.Today
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 
 class MainActivity : ComponentActivity() {
 
@@ -151,7 +155,8 @@ fun WeatherCardHome() {
                 Column {
                     Text(
                         text = "Today's Weather",
-                        style = MaterialTheme.typography.titleMedium.copy(color = Color.White)
+                        style = MaterialTheme.typography.titleMedium.copy(color = Color.White),
+                        fontWeight= FontWeight.Bold
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -212,7 +217,8 @@ fun SummaryHomeDaily() {
                 Column {
                     Text(
                         text = "Daily Overview",
-                        style = MaterialTheme.typography.titleMedium.copy(color = Color.White)
+                        style = MaterialTheme.typography.titleMedium.copy(color = Color.White),
+                        fontWeight= FontWeight.Bold
                     )
                         Text(
                             text = "Placeholder for AI Call summary",
@@ -267,7 +273,8 @@ fun SummaryHomeWeekly() {
                 Column {
                     Text(
                         text = "Weekly Overview",
-                        style = MaterialTheme.typography.titleMedium.copy(color = Color.White)
+                        style = MaterialTheme.typography.titleMedium.copy(color = Color.White),
+                        fontWeight= FontWeight.Bold
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -288,104 +295,83 @@ fun HomeScreen(checkMicrophonePermission: () -> Unit,
                email: String) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(Unit) {
+
+
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                selectedTab = 0
+            }
+        }
+
+        lifecycle.addObserver(observer)
+
+        onDispose {
+            lifecycle.removeObserver(observer)
+        }
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
 
 
         bottomBar = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.20f)
-                    .padding(bottom = 8.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
+                    label = { Text("Home") }
+                )
 
-                    val context = LocalContext.current
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = {
+                        selectedTab = 1
+                        context.startActivity(
+                            Intent(context, NotesActivity::class.java).apply {
+                                putExtra("EMAIL", email)
+                            }
+                        )
+                    },
+                    icon = { Icon(Icons.Default.StickyNote2, contentDescription = "Notes") },
+                    label = { Text("Notes") }
+                )
 
-                    @Composable
-                    fun NavButton(
-                        selected: Boolean,
-                        onClick: () -> Unit,
-                        icon: ImageVector,
-                        label: String
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .weight(1f)
-                                .padding(vertical = 8.dp)
-                                .clickable { onClick() },
-                            verticalArrangement = Arrangement.Center,
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(icon, contentDescription = label, modifier = Modifier.size(32.dp))
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                        }
-                    }
+                NavigationBarItem(
+                    selected = selectedTab == 2,
+                    onClick = {
+                        selectedTab = 2
+                        context.startActivity(
+                            Intent(context, TasksActivity::class.java).apply {
+                                putExtra("EMAIL", email)
+                            }
+                        )
+                    },
+                    icon = { Icon(Icons.Default.Checklist, contentDescription = "Tasks") },
+                    label = { Text("Tasks") }
+                )
 
-                    NavButton(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        icon = Icons.Default.Home,
-                        label = "Home"
-                    )
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = {
+                        selectedTab = 3
+                        context.startActivity(Intent(context, PlaidActivity::class.java))
+                    },
+                    icon = { Icon(Icons.Default.AttachMoney, contentDescription = "Budget") },
+                    label = { Text("Budget") }
+                )
 
-                    NavButton(
-                        selected = selectedTab == 1,
-                        onClick = {
-                            selectedTab = 1
-                            context.startActivity(Intent(context, NotesActivity::class.java).apply {
-                                putExtra("EMAIL",email)
-                            })
-
-                        },
-                        icon = Icons.Default.StickyNote2,
-                        label = "Notes"
-                    )
-
-                    NavButton(
-                        selected = selectedTab == 2,
-                        onClick = {
-                            selectedTab = 2
-                            context.startActivity(Intent(context, TasksActivity::class.java).apply {
-                                putExtra("EMAIL",email)
-                            })
-                        },
-                        icon = Icons.Default.Checklist,
-                        label = "Tasks"
-                    )
-
-                    //I fixed this on the 11/29 push
-                    NavButton(
-                        selected = selectedTab == 3,
-                        onClick = { selectedTab = 3
-                                  context.startActivity(Intent(context,PlaidActivity::class.java))
-                                  },
-                        icon = Icons.Default.AttachMoney,
-                        label = "Budget"
-                    )
-
-                    //Settings I think we should basically just use the previous homework assignment and just do dark/light.
-                    // Maybe provide an option to opt into my AI features
-                    NavButton(
-                        selected = selectedTab == 4,
-                        onClick = { selectedTab = 4 },
-                        icon = Icons.Default.Settings,
-                        label = "Settings"
-                    )
-                }
+                NavigationBarItem(
+                    selected = selectedTab == 4,
+                    onClick = { selectedTab = 4 },
+                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+                    label = { Text("Settings") }
+                )
             }
         }
+
 
     ) { innerPadding ->
 
@@ -411,7 +397,7 @@ fun HomeScreen(checkMicrophonePermission: () -> Unit,
                 Text("Enable Microphone")
             }
             SummaryHomeDaily()
-
+            SummaryHomeWeekly()
             Spacer(modifier = Modifier.height(24.dp))
 
 
@@ -424,7 +410,7 @@ fun HomeScreen(checkMicrophonePermission: () -> Unit,
                 Text("Open Login Page")
             }
 
-            SummaryHomeWeekly()
+
         }
     }
 }
