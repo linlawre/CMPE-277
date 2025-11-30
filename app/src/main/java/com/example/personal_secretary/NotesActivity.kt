@@ -60,13 +60,18 @@ object ApiClient {
 
 
 class NotesActivity : ComponentActivity() {
+    private lateinit var email: String
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        email = intent.getStringExtra("EMAIL").toString()
+        Log.d("NotesActivity", "Current email: $email")
         setContent {
             Personal_SecretaryTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     NotesScreen(
+                        email = email,
                         onBack = { finish() }
                     )
                 }
@@ -77,7 +82,9 @@ class NotesActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NotesScreen(modifier: Modifier = Modifier,
+fun NotesScreen(
+    email:String,
+    modifier: Modifier = Modifier,
      onBack: () -> Unit) {
     var notes by remember { mutableStateOf(listOf<NoteModel>()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -89,7 +96,7 @@ fun NotesScreen(modifier: Modifier = Modifier,
     LaunchedEffect(Unit) {
         isLoading = true
         try {
-            notes = ApiClient.apiService.getNotes()
+            notes = ApiClient.apiService.getNotes().filter {it.user==email}
             Log.d("NotesFetch", "Received notes: $notes")
         } catch (e: Exception) {
             e.printStackTrace()
@@ -142,15 +149,16 @@ fun NotesScreen(modifier: Modifier = Modifier,
 
         if (showForm) {
             AddNoteDialog(
+                email=email,
                 onDismiss = { showForm = false },
                 onSave = { newNote ->
                     scope.launch {
                         try {
-                            val noteToSend = newNote.copy(user = "guest")
-                            val response = ApiClient.apiService.createNote(noteToSend)
+                            val response = ApiClient.apiService.createNote(newNote)
+                            Log.d("NotesActivity", "Creating note w/ Email: $email")
                             if (response.isSuccessful) {
 
-                                notes = ApiClient.apiService.getNotes()
+                                notes = ApiClient.apiService.getNotes().filter { it.user ==email}
                                 Log.d("NotesSave", "Note saved successfully")
                             } else {
                                 Log.e("NotesSave", "Failed to save note: ${response.code()}")
@@ -177,7 +185,7 @@ fun NotesScreen(modifier: Modifier = Modifier,
                                 val response = ApiClient.apiService.updateNote(note._id, updatedNote)
                                 if (response.isSuccessful) {
 
-                                    notes = ApiClient.apiService.getNotes()
+                                    notes = ApiClient.apiService.getNotes().filter {it.user==email}
                                     Log.d("NotesEdit", "Note updated successfully")
                                 } else {
                                     Log.e("NotesEdit", "Failed to update note: ${response.code()}")
@@ -194,7 +202,7 @@ fun NotesScreen(modifier: Modifier = Modifier,
                         try {
                             val response = ApiClient.apiService.deleteNote(noteToDelete._id)
                             if (response.isSuccessful) {
-                                notes = ApiClient.apiService.getNotes()
+                                notes = ApiClient.apiService.getNotes().filter {it.user==email}
                                 Log.d("NotesDelete", "Note deleted successfully")
                             } else {
                                 Log.e("NotesDelete", "Failed to delete note: ${response.code()}")
@@ -230,7 +238,10 @@ fun NoteItem(note: NoteModel, onClick: () -> Unit) {
 
 
 @Composable
-fun AddNoteDialog(onDismiss: () -> Unit, onSave: (NoteRequest) -> Unit) {
+fun AddNoteDialog(
+    email:String,
+    onDismiss: () -> Unit,
+    onSave: (NoteRequest) -> Unit) {
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
 
@@ -262,7 +273,8 @@ fun AddNoteDialog(onDismiss: () -> Unit, onSave: (NoteRequest) -> Unit) {
                         NoteRequest(
                             title = title,
                             description = description,
-                            date = currentDate
+                            date = currentDate,
+                            user = email
                         )
                     )
                 }

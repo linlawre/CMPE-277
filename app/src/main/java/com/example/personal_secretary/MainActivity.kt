@@ -38,12 +38,13 @@ import androidx.compose.ui.res.painterResource
 
 class MainActivity : ComponentActivity() {
 
+    private var email: String = "Unknown"
     private lateinit var requestPermissionLauncher:
             androidx.activity.result.ActivityResultLauncher<String>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
+        email = intent.getStringExtra("EMAIL") ?: "Unknown"
         // Microphone permission launcher
         requestPermissionLauncher =
             registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -55,7 +56,10 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             Personal_SecretaryTheme {
-                HomeScreen(checkMicrophonePermission = { checkMicrophonePermission() })
+                HomeScreen(
+                    checkMicrophonePermission = { checkMicrophonePermission() },
+                    email=email
+                )
             }
         }
     }
@@ -280,7 +284,8 @@ fun SummaryHomeWeekly() {
 
 
 @Composable
-fun HomeScreen(checkMicrophonePermission: () -> Unit) {
+fun HomeScreen(checkMicrophonePermission: () -> Unit,
+               email: String) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
 
@@ -339,7 +344,10 @@ fun HomeScreen(checkMicrophonePermission: () -> Unit) {
                         selected = selectedTab == 1,
                         onClick = {
                             selectedTab = 1
-                            context.startActivity(Intent(context, NotesActivity::class.java))
+                            context.startActivity(Intent(context, NotesActivity::class.java).apply {
+                                putExtra("EMAIL",email)
+                            })
+
                         },
                         icon = Icons.Default.StickyNote2,
                         label = "Notes"
@@ -349,13 +357,15 @@ fun HomeScreen(checkMicrophonePermission: () -> Unit) {
                         selected = selectedTab == 2,
                         onClick = {
                             selectedTab = 2
-                            context.startActivity(Intent(context, TasksActivity::class.java))
+                            context.startActivity(Intent(context, TasksActivity::class.java).apply {
+                                putExtra("EMAIL",email)
+                            })
                         },
                         icon = Icons.Default.Checklist,
                         label = "Tasks"
                     )
 
-                    //This button wont work yet, I still need to put in my plaid API call
+                    //I fixed this on the 11/29 push
                     NavButton(
                         selected = selectedTab == 3,
                         onClick = { selectedTab = 3

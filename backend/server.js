@@ -102,7 +102,7 @@ app.get("/debug/notes", async (req, res) => {
 
 app.get("/notes", async (req, res) => {
   try {
-    const notes = await Note.find({ user: "guest" }).sort({ _id: 1 });
+    const notes = await Note.find();
     res.json(notes);
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -124,7 +124,7 @@ app.post("/notes", async (req, res) => {
       date,
       title,
       description,
-      user: "guest",
+      user,
     });
 
     return res.status(201).json({ success: true, note });
