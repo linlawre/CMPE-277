@@ -19,7 +19,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.personal_secretary.ui.theme.Personal_SecretaryTheme
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.Serializable
@@ -29,8 +34,10 @@ import retrofit2.Retrofit
 import retrofit2.http.GET
 import retrofit2.http.Query
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import kotlinx.coroutines.suspendCancellableCoroutine
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import kotlin.coroutines.resume
 
 class WeatherActivity : ComponentActivity() {
 
@@ -127,42 +134,93 @@ interface WeatherApi {
 
 suspend fun fetchWeather(context: Context, onResult: (String) -> Unit) {
     try {
-        val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
-        val location = fusedLocationClient.lastLocation.await()
+        val fused = LocationServices.getFusedLocationProviderClient(context)
 
-        if (location != null) {
-            val lat = location.latitude
-            val lon = location.longitude
-            val apiKey = context.getApiKey("OPENWEATHERMAP_API_KEY") ?: ""
 
-            val contentType = "application/json".toMediaType()
-            val retrofit = Retrofit.Builder()
-                .baseUrl("https://api.openweathermap.org/data/3.0/")
-                .addConverterFactory(Json { ignoreUnknownKeys = true }.asConverterFactory(contentType))
-                .build()
+        var location = fused.lastLocation.await()
 
-            val api = retrofit.create(WeatherApi::class.java)
 
-            val today = LocalDate.now().format(DateTimeFormatter.ISO_DATE)
-            val response = api.getDaySummary(lat, lon, today, apiKey)
-
-            val tempMin = response.temperature.min
-            val tempMax = response.temperature.max
-            val humidityAfternoon = response.humidity.afternoon
-            val cloudAfternoon = response.cloud_cover.afternoon
-
-            onResult(
-                "Min Temperature: $tempMin F\n" +
-                        "Max Temperature: $tempMax F\n" +
-                        "Afternoon Humidity: $humidityAfternoon%\n" +
-                        "Afternoon Cloud Cover: $cloudAfternoon%"
-            )
-        } else {
-            onResult("Unable to get location (emulator may not provide one)")
+        if (location == null) {
+            location = requestFreshLocation(context, fused)
         }
+
+        if (location == null) {
+            onResult("Unable to get location (GPS off or emulator has no location)")
+            return
+        }
+
+
+        val lat = location.latitude
+        val lon = location.longitude
+
+        val apiKey = context.getApiKey("OPENWEATHERMAP_API_KEY") ?: ""
+        if (apiKey.isEmpty()) {
+            onResult("Missing OpenWeatherMap API key")
+            return
+        }
+
+
+        val contentType = "application/json".toMediaType()
+        val retrofit = Retrofit.Builder()
+            .baseUrl("https://api.openweathermap.org/data/3.0/")
+            .addConverterFactory(Json { ignoreUnknownKeys = true }.asConverterFactory(contentType))
+            .build()
+
+        val api = retrofit.create(WeatherApi::class.java)
+
+
+        val today = LocalDate.now().format(DateTimeFormatter.ISO_DATE)
+        val response = api.getDaySummary(lat, lon, today, apiKey)
+
+        val tempMin = response.temperature.min
+        val tempMax = response.temperature.max
+        val humidityAfternoon = response.humidity.afternoon
+        val cloudAfternoon = response.cloud_cover.afternoon
+
+        onResult(
+            "Min Temperature: $tempMin F\n" +
+                    "Max Temperature: $tempMax F\n" +
+                    "Afternoon Humidity: $humidityAfternoon%\n" +
+                    "Afternoon Cloud Cover: $cloudAfternoon%"
+        )
     } catch (e: Exception) {
         e.printStackTrace()
         onResult("Error fetching weather: ${e.localizedMessage}")
+    }
+}
+
+
+suspend fun requestFreshLocation(
+    context: Context,
+    fused: FusedLocationProviderClient
+) = suspendCancellableCoroutine<android.location.Location?> { cont ->
+
+    val request = LocationRequest.Builder(
+        Priority.PRIORITY_HIGH_ACCURACY, 2000L
+    )
+        .setWaitForAccurateLocation(true)
+        .setMaxUpdates(1)
+        .build()
+
+    val callback = object : LocationCallback() {
+        override fun onLocationResult(result: LocationResult) {
+            fused.removeLocationUpdates(this)
+            if (cont.isActive) {
+                cont.resume(result.lastLocation)
+            }
+        }
+    }
+
+    // Begin listening
+    fused.requestLocationUpdates(request, callback, context.mainLooper)
+
+    // Timeout fallback
+    kotlinx.coroutines.GlobalScope.launch {
+        kotlinx.coroutines.delay(4000L)
+        if (cont.isActive) {
+            fused.removeLocationUpdates(callback)
+            cont.resume(null)
+        }
     }
 }
 
