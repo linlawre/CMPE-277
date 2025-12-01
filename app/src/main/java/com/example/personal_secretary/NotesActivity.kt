@@ -60,13 +60,18 @@ object ApiClient {
 
 
 class NotesActivity : ComponentActivity() {
+    private lateinit var email: String
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        email = intent.getStringExtra("EMAIL").toString()
+        Log.d("NotesActivity", "Current email: $email")
         setContent {
             Personal_SecretaryTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     NotesScreen(
+                        email = email,
                         onBack = { finish() }
                     )
                 }
@@ -77,26 +82,53 @@ class NotesActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NotesScreen(modifier: Modifier = Modifier,
-     onBack: () -> Unit) {
+fun NotesScreen(
+    email: String,
+    modifier: Modifier = Modifier,
+    onBack: () -> Unit
+) {
     var notes by remember { mutableStateOf(listOf<NoteModel>()) }
     var isLoading by remember { mutableStateOf(true) }
-    var showForm by remember { mutableStateOf(false) }
+    var showAddDialog by remember { mutableStateOf(false) }
+    var showBottomSheet by remember { mutableStateOf(false) }
     var selectedNote by remember { mutableStateOf<NoteModel?>(null) }
+    var selectedTemplateDescription by remember { mutableStateOf("") }
 
     val scope = rememberCoroutineScope()
+
 
     LaunchedEffect(Unit) {
         isLoading = true
         try {
-            notes = ApiClient.apiService.getNotes()
-            Log.d("NotesFetch", "Received notes: $notes")
-        } catch (e: Exception) {
-            e.printStackTrace()
-        } finally {
-            isLoading = false
-        }
+            notes = ApiClient.apiService.getNotes().filter { it.user == email }
+        } catch (e: Exception) { e.printStackTrace() }
+        finally { isLoading = false }
     }
+
+    val templates = mapOf(
+        "Grocery List" to """
+            • Milk
+            • Eggs
+            • Bread
+            • Vegetables
+            • Fruits
+            • Meat
+        """.trimIndent(),
+        "To-Do Checklist" to """
+            • Morning Routine
+            • Work Tasks
+            • Exercise
+            • Study/Reading
+            • Evening Tasks
+        """.trimIndent(),
+        "Meeting Notes" to """
+            • Attendees:
+            • Agenda:
+            • Key Points:
+            • Action Items:
+            • Next Meeting:
+        """.trimIndent()
+    )
 
     Scaffold(
         topBar = {
@@ -110,11 +142,12 @@ fun NotesScreen(modifier: Modifier = Modifier,
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showForm = true }) {
+            FloatingActionButton(onClick = { showBottomSheet = true }) {
                 Icon(Icons.Default.Add, contentDescription = "Add Note")
             }
         }
     ) { paddingValues ->
+
         Column(
             modifier = modifier
                 .fillMaxSize()
@@ -131,35 +164,72 @@ fun NotesScreen(modifier: Modifier = Modifier,
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
-                    items(notes) {
-                        note -> NoteItem(note=note){
-                            selectedNote= note
-                    }
+                    items(notes) { note ->
+                        NoteItem(note = note) { selectedNote = note }
                     }
                 }
             }
         }
 
-        if (showForm) {
+        if (showBottomSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showBottomSheet = false }
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "Choose a Template",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+
+                    templates.forEach { (name, description) ->
+                        Text(
+                            text = name,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedTemplateDescription = description
+                                    showBottomSheet = false
+                                    showAddDialog = true
+                                }
+                                .padding(vertical = 8.dp)
+                        )
+                    }
+
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+
+                    Text(
+                        text = "Blank Note",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedTemplateDescription = ""
+                                showBottomSheet = false
+                                showAddDialog = true
+                            }
+                            .padding(vertical = 8.dp)
+                    )
+                }
+            }
+        }
+
+
+        if (showAddDialog) {
             AddNoteDialog(
-                onDismiss = { showForm = false },
+                email = email,
+                initialDescription = selectedTemplateDescription,
+                onDismiss = { showAddDialog = false },
                 onSave = { newNote ->
                     scope.launch {
                         try {
-                            val noteToSend = newNote.copy(user = "guest")
-                            val response = ApiClient.apiService.createNote(noteToSend)
+                            val response = ApiClient.apiService.createNote(newNote)
                             if (response.isSuccessful) {
-
-                                notes = ApiClient.apiService.getNotes()
-                                Log.d("NotesSave", "Note saved successfully")
-                            } else {
-                                Log.e("NotesSave", "Failed to save note: ${response.code()}")
+                                notes = ApiClient.apiService.getNotes().filter { it.user == email }
                             }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        } finally {
-                            showForm = false
-                        }
+                        } catch (e: Exception) { e.printStackTrace() }
+                        finally { showAddDialog = false }
                     }
                 }
             )
@@ -173,20 +243,12 @@ fun NotesScreen(modifier: Modifier = Modifier,
                 onSave = { updatedNote ->
                     scope.launch {
                         try {
-
-                                val response = ApiClient.apiService.updateNote(note._id, updatedNote)
-                                if (response.isSuccessful) {
-
-                                    notes = ApiClient.apiService.getNotes()
-                                    Log.d("NotesEdit", "Note updated successfully")
-                                } else {
-                                    Log.e("NotesEdit", "Failed to update note: ${response.code()}")
-                                }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        } finally {
-                            selectedNote = null
-                        }
+                            val response = ApiClient.apiService.updateNote(note._id, updatedNote)
+                            if (response.isSuccessful) {
+                                notes = ApiClient.apiService.getNotes().filter { it.user == email }
+                            }
+                        } catch (e: Exception) { e.printStackTrace() }
+                        finally { selectedNote = null }
                     }
                 },
                 onDelete = { noteToDelete ->
@@ -194,16 +256,10 @@ fun NotesScreen(modifier: Modifier = Modifier,
                         try {
                             val response = ApiClient.apiService.deleteNote(noteToDelete._id)
                             if (response.isSuccessful) {
-                                notes = ApiClient.apiService.getNotes()
-                                Log.d("NotesDelete", "Note deleted successfully")
-                            } else {
-                                Log.e("NotesDelete", "Failed to delete note: ${response.code()}")
+                                notes = ApiClient.apiService.getNotes().filter { it.user == email }
                             }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        } finally {
-                            selectedNote = null
-                        }
+                        } catch (e: Exception) { e.printStackTrace() }
+                        finally { selectedNote = null }
                     }
                 }
             )
@@ -230,9 +286,14 @@ fun NoteItem(note: NoteModel, onClick: () -> Unit) {
 
 
 @Composable
-fun AddNoteDialog(onDismiss: () -> Unit, onSave: (NoteRequest) -> Unit) {
+fun AddNoteDialog(
+    email: String,
+    initialDescription: String = "",
+    onDismiss: () -> Unit,
+    onSave: (NoteRequest) -> Unit
+) {
     var title by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf(initialDescription) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -262,13 +323,12 @@ fun AddNoteDialog(onDismiss: () -> Unit, onSave: (NoteRequest) -> Unit) {
                         NoteRequest(
                             title = title,
                             description = description,
-                            date = currentDate
+                            date = currentDate,
+                            user = email
                         )
                     )
                 }
-            }) {
-                Text("Save")
-            }
+            }) { Text("Save") }
         },
         dismissButton = {
             Button(onClick = onDismiss) { Text("Cancel") }

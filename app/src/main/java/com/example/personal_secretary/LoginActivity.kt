@@ -97,6 +97,7 @@ fun LoginScreen() {
                     CoroutineScope(Dispatchers.Main).launch {
                         if (response.success) {
                             val intent = Intent(context, MainActivity::class.java)
+                            intent.putExtra("EMAIL", email)
                             context.startActivity(intent)
                             (context as? ComponentActivity)?.finish()
                         } else {
