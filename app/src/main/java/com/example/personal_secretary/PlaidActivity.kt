@@ -43,6 +43,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import coil.compose.AsyncImage
+import java.net.UnknownHostException
 
 class PlaidActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -89,7 +90,6 @@ fun PlaidScreen(onBack: () -> Unit) {
             weeklyTotal = computeWeeklyTotal(transactions)
             monthlyTotal = computeMonthlyTotal(transactions)
 
-            // Start AI generation immediately
             val recentTx = transactions.filter { LocalDate.parse(it.date) >= LocalDate.now().minusDays(7) }
             val promptText = buildString {
                 append("Rate my spending and give me advice.\n")
@@ -213,7 +213,7 @@ fun PlaidScreen(onBack: () -> Unit) {
                     .fillMaxWidth()
                     .padding(16.dp)
             ) {
-                Text("AI Advice", style = MaterialTheme.typography.titleLarge)
+                Text("Spending Review", style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(8.dp))
                 Box(
                     Modifier
@@ -300,7 +300,12 @@ interface BackendApi {
     suspend fun sendPrompt(@Url url: String, @Body body: BackendRequest): Response<BackendResponse>
 }
 
-suspend fun sendToBackend(context: Context, prompt: String): String {
+suspend fun sendToBackend(
+    context: Context,
+    prompt: String,
+    retries: Int = 3,
+    delayMs: Long = 1000L
+): String {
     val backendUrl = context.getConfigValue("BACKEND_URL") ?: throw Exception("BACKEND_URL not set")
 
     val contentType = "application/json".toMediaType()
@@ -313,12 +318,32 @@ suspend fun sendToBackend(context: Context, prompt: String): String {
         .build()
 
     val retrofit = Retrofit.Builder()
-        .baseUrl("https://dummy.com/")
+        .baseUrl("https://google.com/")
         .client(client)
         .addConverterFactory(Json { ignoreUnknownKeys = true }.asConverterFactory(contentType))
         .build()
 
     val api = retrofit.create(BackendApi::class.java)
+
+    repeat(retries - 1) { attempt ->
+        try {
+            val response = api.sendPrompt(backendUrl, BackendRequest(prompt))
+            return if (response.isSuccessful) {
+                response.body()?.response ?: "Empty response"
+            } else {
+                "Error: ${response.code()} ${response.message()}"
+            }
+        } catch (e: Exception) {
+            if (e is UnknownHostException || e.message?.contains("Unable to resolve host") == true) {
+
+                delay(delayMs)
+            } else {
+
+                throw e
+            }
+        }
+    }
+
 
     return try {
         val response = api.sendPrompt(backendUrl, BackendRequest(prompt))
@@ -328,7 +353,7 @@ suspend fun sendToBackend(context: Context, prompt: String): String {
             "Error: ${response.code()} ${response.message()}"
         }
     } catch (e: Exception) {
-        "Error fetching AI response: ${e.localizedMessage}"
+        "Error fetching suggestions from the server: ${e.localizedMessage}"
     }
 }
 
