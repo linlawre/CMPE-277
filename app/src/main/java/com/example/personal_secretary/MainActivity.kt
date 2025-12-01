@@ -10,8 +10,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Checklist
@@ -22,24 +22,29 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.personal_secretary.ui.theme.Personal_SecretaryTheme
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.shape.*
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.CalendarViewWeek
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import java.time.DayOfWeek
+import java.time.temporal.TemporalAdjusters
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
 
@@ -180,7 +185,56 @@ fun WeatherCardHome() {
 }
 
 @Composable
-fun SummaryHomeDaily() {
+fun SummaryHomeDaily(email: String) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var isLoading by remember { mutableStateOf(true) }
+    var text by remember { mutableStateOf("Loading daily summary...") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(email) {
+        isLoading = true
+        error = null
+        try {
+
+            val tasks = withContext(Dispatchers.IO) {
+                try {
+                    TaskApiClient.apiService.getTasks()
+                } catch (e: Exception) {
+                    emptyList<TaskModel>()
+                }
+            }.filter { it.user == email && !it.done }
+
+            val today = LocalDate.now().toString()
+            val todays = tasks.filter { it.date == today }
+
+            if (todays.isEmpty()) {
+                text = "No pending tasks! Enjoy!"
+            } else {
+
+                val prompt = buildString {
+                    append("Please summarize the following tasks for today ($today) for the user.\n")
+                    append("Provide a short concise summary and suggested next steps.\n\n")
+                    append("Note that the user will not respond to you in any way, information you give should be more action-based and not request more information as none will be given")
+                    todays.forEachIndexed { idx, t ->
+                        append("${idx + 1}. ${t.description}")
+                        if (!t.location.isNullOrBlank()) append(" — ${t.location}")
+                        append("\n")
+                    }
+                }
+
+
+                text = "Generating summary..."
+                val response = sendToBackend(context, prompt)
+                text = response
+            }
+        } catch (e: Exception) {
+            error = "Error generating daily summary: ${e.localizedMessage ?: "unknown"}"
+        } finally {
+            isLoading = false
+        }
+    }
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -219,200 +273,296 @@ fun SummaryHomeDaily() {
                     Text(
                         text = "Daily Overview",
                         style = MaterialTheme.typography.titleMedium.copy(color = Color.White),
-                        fontWeight= FontWeight.Bold
+                        fontWeight = FontWeight.Bold
                     )
-                        Text(
-                            text = "Placeholder for AI Call summary",
-                            style = MaterialTheme.typography.titleMedium.copy(color = Color.White)
+                    if (isLoading) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = Color.White
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Generating summary...",
+                                style = MaterialTheme.typography.bodyMedium.copy(color = Color.White)
+                            )
+                        }
+                    } else {
+                        error?.let {
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.bodyMedium.copy(color = Color.Yellow)
+                            )
+                        } ?: Text(
+                            text = text,
+                            style = MaterialTheme.typography.bodyMedium.copy(color = Color.White)
                         )
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-
+                    }
                 }
             }
         }
     }
 }
 
-@Composable
-fun SummaryHomeWeekly() {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Box(
+    @Composable
+    fun SummaryHomeWeekly(email: String) {
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
+
+        var isLoading by remember { mutableStateOf(true) }
+        var text by remember { mutableStateOf("Loading weekly summary...") }
+        var error by remember { mutableStateOf<String?>(null) }
+
+        LaunchedEffect(email) {
+            isLoading = true
+            error = null
+            try {
+                val tasks = withContext(Dispatchers.IO) {
+                    try {
+                        TaskApiClient.apiService.getTasks()
+                    } catch (e: Exception) {
+                        emptyList<TaskModel>()
+                    }
+                }.filter { it.user == email && !it.done }
+
+                val today = LocalDate.now()
+                val startOfWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                val endOfWeek = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
+
+                val weekTasks = tasks.filter {
+                    try {
+                        val d = LocalDate.parse(it.date)
+                        !d.isBefore(startOfWeek) && !d.isAfter(endOfWeek)
+                    } catch (e: Exception) {
+                        false
+                    }
+                }
+
+                if (weekTasks.isEmpty()) {
+                    text = "No pending tasks! Enjoy!"
+                } else {
+
+                    val prompt = buildString {
+                        append("Please summarize the user's tasks for the current week (${startOfWeek} to ${endOfWeek}).\n")
+                        append("Give a concise weekly summary and suggested priorities.\n\n")
+                        append("Note that the user will not respond to you in any way, information you give should be more action-based and not request more information as none will be given")
+                        weekTasks.forEachIndexed { idx, t ->
+                            append("${idx + 1}. ${t.date} — ${t.description}")
+                            if (!t.location.isNullOrBlank()) append(" — ${t.location}")
+                            append("\n")
+                        }
+                    }
+
+                    text = "Generating quick summary..."
+                    val response = sendToBackend(context, prompt)
+                    text = response
+                }
+            } catch (e: Exception) {
+                error = "Error generating weekly summary: ${e.localizedMessage ?: "unknown"}"
+            } finally {
+                isLoading = false
+            }
+        }
+
+        Card(
             modifier = Modifier
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFFBA68C8),
-                            Color(0xFF7B1FA2)
-                        )
-                    )
-                )
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(vertical = 12.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+            Box(
+                modifier = Modifier
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0xFFBA68C8),
+                                Color(0xFF7B1FA2)
+                            )
+                        )
+                    )
+                    .fillMaxWidth()
+                    .padding(16.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.CalendarViewWeek,
-                    contentDescription = "Default Week",
-                    tint = Color.White,
-                    modifier = Modifier.size(48.dp)
-                )
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Column {
-                    Text(
-                        text = "Weekly Overview",
-                        style = MaterialTheme.typography.titleMedium.copy(color = Color.White),
-                        fontWeight= FontWeight.Bold
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CalendarViewWeek,
+                        contentDescription = "Default Week",
+                        tint = Color.White,
+                        modifier = Modifier.size(48.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Placeholder for AI Call summary",
-                        style = MaterialTheme.typography.titleMedium.copy(color = Color.White)
-                    )
+                    Spacer(modifier = Modifier.width(16.dp))
 
+                    Column {
+                        Text(
+                            text = "Weekly Overview",
+                            style = MaterialTheme.typography.titleMedium.copy(color = Color.White),
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (isLoading) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    color = Color.White
+                                )
+                                Spacer(Modifier.width(16.dp))
+                                Text(
+                                    "Generating weekly summary...",
+                                    style = MaterialTheme.typography.bodyMedium.copy(color = Color.White)
+                                )
+                            }
+                        } else {
+                            error?.let {
+                                Text(
+                                    it,
+                                    style = MaterialTheme.typography.bodyMedium.copy(color = Color.Yellow)
+                                )
+                            } ?: Text(
+                                text = text,
+                                style = MaterialTheme.typography.bodyMedium.copy(color = Color.White)
+                            )
+                        }
+                    }
                 }
             }
         }
     }
-}
+
+    @Composable
+    fun HomeScreen(
+        checkMicrophonePermission: () -> Unit,
+        email: String
+    ) {
+        var selectedTab by remember { mutableIntStateOf(0) }
+        val context = LocalContext.current
+        val lifecycle = LocalLifecycleOwner.current.lifecycle
+        val scrollState = rememberScrollState()
+        DisposableEffect(Unit) {
 
 
-@Composable
-fun HomeScreen(checkMicrophonePermission: () -> Unit,
-               email: String) {
-    var selectedTab by remember { mutableIntStateOf(0) }
-    val context = LocalContext.current
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    DisposableEffect(Unit) {
-
-
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                selectedTab = 0
-            }
-        }
-
-        lifecycle.addObserver(observer)
-
-        onDispose {
-            lifecycle.removeObserver(observer)
-        }
-    }
-
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-
-
-        bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                    label = { Text("Home") }
-                )
-
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = {
-                        selectedTab = 1
-                        context.startActivity(
-                            Intent(context, NotesActivity::class.java).apply {
-                                putExtra("EMAIL", email)
-                            }
-                        )
-                    },
-                    icon = { Icon(Icons.Default.StickyNote2, contentDescription = "Notes") },
-                    label = { Text("Notes") }
-                )
-
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = {
-                        selectedTab = 2
-                        context.startActivity(
-                            Intent(context, TasksActivity::class.java).apply {
-                                putExtra("EMAIL", email)
-                            }
-                        )
-                    },
-                    icon = { Icon(Icons.Default.Checklist, contentDescription = "Tasks") },
-                    label = { Text("Tasks") }
-                )
-
-                NavigationBarItem(
-                    selected = selectedTab == 3,
-                    onClick = {
-                        selectedTab = 3
-                        context.startActivity(Intent(context, PlaidActivity::class.java))
-                    },
-                    icon = { Icon(Icons.Default.AttachMoney, contentDescription = "Budget") },
-                    label = { Text("Budget") }
-                )
-
-                NavigationBarItem(
-                    selected = selectedTab == 4,
-                    onClick = { selectedTab = 4 },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                    label = { Text("Settings") }
-                )
-            }
-        }
-
-
-    ) { innerPadding ->
-
-
-        Column(
-            modifier = Modifier
-                .padding(innerPadding)
-                .fillMaxSize()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.Top
-        ) {
-            Text(
-                "Welcome to your Personal Secretary",
-                fontSize = 18.sp,
-                maxLines = 1
-            )
-            // I believe we should do a summarized view here, most likely will add my OpenAI calls here too.
-
-            Spacer(modifier = Modifier.height(24.dp))
-            WeatherCardHome()
-
-            //This one we might not keep on this page, maybe throw it into the notes/task section
-            Button(onClick = checkMicrophonePermission) {
-                Text("Enable Microphone")
-            }
-            SummaryHomeDaily()
-            SummaryHomeWeekly()
-            Spacer(modifier = Modifier.height(24.dp))
-
-
-            //Temporarily leave this here so we can test the login activity, but eventually we should be starting at Login -> Go to main
-            Button(
-                onClick = {
-                    context.startActivity(Intent(context, LoginActivity::class.java))
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    selectedTab = 0
                 }
-            ) {
-                Text("Open Login Page")
+            }
+
+            lifecycle.addObserver(observer)
+
+            onDispose {
+                lifecycle.removeObserver(observer)
+            }
+        }
+
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+
+
+            bottomBar = {
+                NavigationBar {
+                    NavigationBarItem(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
+                        label = { Text("Home") }
+                    )
+
+                    NavigationBarItem(
+                        selected = selectedTab == 1,
+                        onClick = {
+                            selectedTab = 1
+                            context.startActivity(
+                                Intent(context, NotesActivity::class.java).apply {
+                                    putExtra("EMAIL", email)
+                                }
+                            )
+                        },
+                        icon = { Icon(Icons.Default.StickyNote2, contentDescription = "Notes") },
+                        label = { Text("Notes") }
+                    )
+
+                    NavigationBarItem(
+                        selected = selectedTab == 2,
+                        onClick = {
+                            selectedTab = 2
+                            context.startActivity(
+                                Intent(context, TasksActivity::class.java).apply {
+                                    putExtra("EMAIL", email)
+                                }
+                            )
+                        },
+                        icon = { Icon(Icons.Default.Checklist, contentDescription = "Tasks") },
+                        label = { Text("Tasks") }
+                    )
+
+                    NavigationBarItem(
+                        selected = selectedTab == 3,
+                        onClick = {
+                            selectedTab = 3
+                            context.startActivity(Intent(context, PlaidActivity::class.java))
+                        },
+                        icon = { Icon(Icons.Default.AttachMoney, contentDescription = "Budget") },
+                        label = { Text("Budget") }
+                    )
+
+                    NavigationBarItem(
+                        selected = selectedTab == 4,
+                        onClick = { selectedTab = 4 },
+                        icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+                        label = { Text("Settings") }
+                    )
+                }
             }
 
 
+        ) { innerPadding ->
+
+
+            Column(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .padding(24.dp),
+
+                verticalArrangement = Arrangement.Top
+            ) {
+                Text(
+                    "Welcome to your Personal Secretary",
+                    fontSize = 18.sp,
+                    maxLines = 1
+                )
+                // I believe we should do a summarized view here, most likely will add my OpenAI calls here too.
+
+                Spacer(modifier = Modifier.height(24.dp))
+                WeatherCardHome()
+
+                //This one we might not keep on this page, maybe throw it into the notes/task section
+                Button(onClick = checkMicrophonePermission) {
+                    Text("Enable Microphone")
+                }
+                SummaryHomeDaily(email)
+                SummaryHomeWeekly(email)
+                Spacer(modifier = Modifier.height(24.dp))
+
+
+                //Temporarily leave this here so we can test the login activity, but eventually we should be starting at Login -> Go to main
+                Button(
+                    onClick = {
+                        context.startActivity(Intent(context, LoginActivity::class.java))
+                    }
+                ) {
+                    Text("Open Login Page")
+                }
+
+
+            }
         }
     }
-}
+
+
