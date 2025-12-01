@@ -131,7 +131,7 @@ fun PlaidScreen(onBack: () -> Unit) {
             ) {
                 CircularProgressIndicator()
                 Spacer(Modifier.height(8.dp))
-                Text("Loading sandboxed data from Plaid (Beta feature)")
+                Text("Loading transaction data from servers (Beta feature)")
             }
         }
 
@@ -172,7 +172,7 @@ fun PlaidScreen(onBack: () -> Unit) {
                 }
                 Spacer(Modifier.height(12.dp))
                 Button(onClick = { showAIModal = true }) {
-                    Text("View Spend Rating")
+                    Text("View Spending Suggestions")
                 }
             }
 
