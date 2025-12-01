@@ -116,11 +116,11 @@ fun PlaidScreen(onBack: () -> Unit) {
     val categoryTotals by remember(transactions) { mutableStateOf(computeCategoryTotals(transactions)) }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        // Back
+
         TextButton(onClick = onBack) { Text("< Back", style = MaterialTheme.typography.bodyMedium) }
         Spacer(Modifier.height(12.dp))
 
-        Text("Plaid Sandbox Demo", style = MaterialTheme.typography.titleLarge)
+        Text("Spending Habits (Beta)", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(12.dp))
 
         if (loading) {
@@ -162,14 +162,20 @@ fun PlaidScreen(onBack: () -> Unit) {
 
             Spacer(Modifier.height(12.dp))
 
+            Column (
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            )
+            {
+                Button(onClick = { showTransactionModal = true }) {
+                    Text("View Transactions (${transactions.size})")
+                }
+                Spacer(Modifier.height(12.dp))
+                Button(onClick = { showAIModal = true }) {
+                    Text("View Spend Rating")
+                }
+            }
 
-            Button(onClick = { showTransactionModal = true }) {
-                Text("View Transactions (${transactions.size})")
-            }
-            Spacer(Modifier.height(12.dp))
-            Button(onClick = { showAIModal = true }) {
-                Text("View AI Advice")
-            }
         }
     }
 
@@ -442,7 +448,11 @@ fun SpendingPieChart(categoryTotals: Map<String, Double>, modifier: Modifier = M
     val total = categoryTotals.values.sum()
     val colors = listOf(
         Color(0xFF1E88E5), Color(0xFF43A047), Color(0xFFFDD835),
-        Color(0xFFE53935), Color(0xFF8E24AA), Color(0xFFFF7043)
+        Color(0xFFE53935), Color(0xFF8E24AA), Color(0xFFFF7043),
+        Color(0xFF00897B), Color(0xFF6D4C41), Color(0xFF7CB342),
+        Color(0xFF5C6BC0), Color(0xFFEC407A), Color(0xFF26C6DA),
+        Color(0xFFA1887F), Color(0xFFAB47BC), Color(0xFFFFCA28),
+        Color(0xFF29B6F6)
     )
     Row (
         modifier=Modifier.fillMaxWidth(),
