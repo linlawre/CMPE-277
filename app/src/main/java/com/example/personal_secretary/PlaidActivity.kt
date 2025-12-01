@@ -14,7 +14,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -38,6 +37,12 @@ import retrofit2.http.Url
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Properties
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.geometry.Size
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import coil.compose.AsyncImage
 
 class PlaidActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,6 +58,7 @@ class PlaidActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaidScreen(onBack: () -> Unit) {
     val context = LocalContext.current
@@ -63,6 +69,12 @@ fun PlaidScreen(onBack: () -> Unit) {
     var weeklyTotal by remember { mutableStateOf(0.0) }
     var monthlyTotal by remember { mutableStateOf(0.0) }
     var aiResponse by remember { mutableStateOf("Loading AI advice...") }
+
+    var showTransactionModal by remember { mutableStateOf(false) }
+    var showAIModal by remember { mutableStateOf(false) }
+
+    val transactionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val aiSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     LaunchedEffect(Unit) {
         loading = true
@@ -76,6 +88,8 @@ fun PlaidScreen(onBack: () -> Unit) {
             transactions = list.sortedByDescending { it.date }.take(30)
             weeklyTotal = computeWeeklyTotal(transactions)
             monthlyTotal = computeMonthlyTotal(transactions)
+
+            // Start AI generation immediately
             val recentTx = transactions.filter { LocalDate.parse(it.date) >= LocalDate.now().minusDays(7) }
             val promptText = buildString {
                 append("Rate my spending and give me advice.\n")
@@ -90,6 +104,7 @@ fun PlaidScreen(onBack: () -> Unit) {
             scope.launch {
                 aiResponse = sendToBackend(context, promptText)
             }
+
         } catch (e: Exception) {
             error = e.localizedMessage ?: "Unknown error"
             Log.e("PLAID_DEBUG", "Error loading sandbox data", e)
@@ -98,15 +113,16 @@ fun PlaidScreen(onBack: () -> Unit) {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(top = 32.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)
-    ) {
+    val categoryTotals by remember(transactions) { mutableStateOf(computeCategoryTotals(transactions)) }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        // Back
         TextButton(onClick = onBack) { Text("< Back", style = MaterialTheme.typography.bodyMedium) }
         Spacer(Modifier.height(12.dp))
+
         Text("Plaid Sandbox Demo", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(12.dp))
+
         if (loading) {
             Column(
                 modifier = Modifier.fillMaxWidth().height(200.dp),
@@ -118,8 +134,11 @@ fun PlaidScreen(onBack: () -> Unit) {
                 Text("Loading sandboxed data from Plaid (Beta feature)")
             }
         }
+
         error?.let { Text(it, color = Color.Red) }
+
         if (!loading && error == null) {
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -127,24 +146,80 @@ fun PlaidScreen(onBack: () -> Unit) {
                 SummaryCardDynamic("Weekly total", weeklyTotal, Color(0xFFB3E5FC))
                 SummaryCardDynamic("Monthly total", monthlyTotal, Color(0xFFFFF9C4))
             }
-            Spacer(Modifier.height(8.dp))
-            val scrollState = rememberScrollState()
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(250.dp)
-                    .background(Color.LightGray.copy(alpha = 0.2f), shape = MaterialTheme.shapes.medium)
-                    .padding(16.dp)
-                    .verticalScroll(scrollState),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(aiResponse, color = Color.DarkGray.copy(alpha = 0.8f), style = MaterialTheme.typography.bodyLarge)
+
+            Spacer(Modifier.height(12.dp))
+
+            Column(
+                modifier= Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ){
+                Text("Spending by Category", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(8.dp))
+                SpendingPieChart(categoryTotals)
+                Spacer(Modifier.height(8.dp))
+            }
+
+
+            Spacer(Modifier.height(12.dp))
+
+
+            Button(onClick = { showTransactionModal = true }) {
+                Text("View Transactions (${transactions.size})")
             }
             Spacer(Modifier.height(12.dp))
-            Text("Transactions", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(8.dp))
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(transactions) { tx -> TransactionRow(tx) }
+            Button(onClick = { showAIModal = true }) {
+                Text("View AI Advice")
+            }
+        }
+    }
+
+
+    if (showTransactionModal) {
+        ModalBottomSheet(
+            onDismissRequest = { showTransactionModal = false },
+            sheetState = transactionSheetState
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Text("Transactions", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(8.dp))
+                LazyColumn {
+                    items(transactions) { tx ->
+                        TransactionRow(tx)
+                        Spacer(Modifier.height(4.dp))
+                    }
+                }
+            }
+        }
+    }
+
+
+    if (showAIModal) {
+        ModalBottomSheet(
+            onDismissRequest = { showAIModal = false },
+            sheetState = aiSheetState
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Text("AI Advice", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(8.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(250.dp)
+                        .background(Color.LightGray.copy(alpha = 0.2f), shape = MaterialTheme.shapes.medium)
+                        .padding(16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    contentAlignment = Alignment.TopStart
+                ) {
+                    Text(aiResponse)
+                }
             }
         }
     }
@@ -168,11 +243,27 @@ fun SummaryCardDynamic(label: String, amount: Double, backgroundColor: Color) {
 
 @Composable
 fun TransactionRow(tx: PlaidTransaction) {
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Row(modifier = Modifier.padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Column {
-                Text(tx.name, style = MaterialTheme.typography.bodyMedium)
-                Text(tx.date, style = MaterialTheme.typography.bodySmall)
+    Card(modifier = Modifier
+        .fillMaxWidth()
+        .clickable {  }
+        .padding(vertical = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                tx.logoUrl?.let { url ->
+                    AsyncImage(model = url, contentDescription = tx.merchantName ?: tx.name, modifier = Modifier.size(40.dp))
+                    Spacer(Modifier.width(8.dp))
+                }
+                Column {
+                    Text(tx.merchantName ?: tx.name, style = MaterialTheme.typography.bodyMedium)
+                    Text(tx.personalFinanceCategory?.primary ?: tx.category?.firstOrNull() ?: "Other",
+                        style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    Text(tx.date, style = MaterialTheme.typography.bodySmall)
+                }
             }
             Text("$${"%.2f".format(tx.amount)}", style = MaterialTheme.typography.bodyMedium)
         }
@@ -254,10 +345,24 @@ data class TransactionsGetRequest(val client_id: String, val secret: String, val
 data class TransactionsGetOptions(val count: Int, val offset: Int = 0)
 
 @Serializable
-data class TransactionsGetResponse(val transactions: List<PlaidTransactionRaw> = emptyList())
+data class PlaidTransactionRaw(
+    val name: String? = null,
+    val amount: Double? = null,
+    val date: String? = null,
+    val category: List<String>? = null,
+    val merchant_name: String? = null,
+    val logo_url: String? = null,
+    val personal_finance_category: PersonalFinanceCategoryRaw? = null,
+    val payment_channel: String? = null
+)
 
 @Serializable
-data class PlaidTransactionRaw(val name: String? = null, val amount: Double? = null, val date: String? = null, val category: List<String>? = null)
+data class PersonalFinanceCategoryRaw(
+    val confidence_level: String? = null,
+    val detailed: String? = null,
+    val primary: String? = null,
+    val version: String? = null
+)
 
 interface PlaidApi {
     @POST("sandbox/public_token/create")
@@ -290,23 +395,6 @@ private suspend fun createPlaidSandboxItem(context: Context): String {
     return exchangeResp.access_token ?: throw Exception("Plaid did not return access_token")
 }
 
-private suspend fun getPlaidTransactions(context: Context, accessToken: String, startDate: String, endDate: String, count: Int = 30, offset: Int = 0): List<PlaidTransaction> {
-    val clientId = context.getConfigValue("PLAID_CLIENT_ID")!!
-    val secret = context.getConfigValue("PLAID_SECRET")!!
-    val contentType = "application/json".toMediaType()
-    val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }
-    val client = OkHttpClient.Builder().addInterceptor(logging).build()
-    val retrofit = Retrofit.Builder()
-        .baseUrl("https://sandbox.plaid.com/")
-        .client(client)
-        .addConverterFactory(Json { ignoreUnknownKeys = true }.asConverterFactory(contentType))
-        .build()
-    val api = retrofit.create(PlaidApi::class.java)
-    val req = TransactionsGetRequest(clientId, secret, accessToken, startDate, endDate, TransactionsGetOptions(count.coerceIn(1,30), offset))
-    val rawResp = api.getTransactions(req)
-    return rawResp.transactions.map { PlaidTransaction(it.name ?: "Unknown", it.amount ?: 0.0, it.date ?: "", it.category) }
-}
-
 private suspend fun getPlaidTransactionsWithRetry(context: Context, accessToken: String, startDate: String, endDate: String): List<PlaidTransaction> {
     var attempts = 0
     val maxAttempts = 10
@@ -331,4 +419,128 @@ private fun computeMonthlyTotal(list: List<PlaidTransaction>): Double {
     return list.filter { LocalDate.parse(it.date) >= cutoff }.sumOf { it.amount }
 }
 
-data class PlaidTransaction(val name: String, val amount: Double, val date: String, val category: List<String>? = null)
+data class PlaidTransaction(
+    val name: String,
+    val amount: Double,
+    val date: String,
+    val category: List<String>? = null,
+    val merchantName: String? = null,
+    val logoUrl: String? = null,
+    val personalFinanceCategory: PersonalFinanceCategory? = null,
+    val paymentChannel: String? = null
+)
+
+data class PersonalFinanceCategory(
+    val confidenceLevel: String?,
+    val detailed: String?,
+    val primary: String?,
+    val version: String?
+)
+
+@Composable
+fun SpendingPieChart(categoryTotals: Map<String, Double>, modifier: Modifier = Modifier.size(200.dp)) {
+    val total = categoryTotals.values.sum()
+    val colors = listOf(
+        Color(0xFF1E88E5), Color(0xFF43A047), Color(0xFFFDD835),
+        Color(0xFFE53935), Color(0xFF8E24AA), Color(0xFFFF7043)
+    )
+    Row (
+        modifier=Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically){
+         Canvas(modifier = modifier) {
+             var startAngle = -90f
+             var colorIndex = 0
+           categoryTotals.forEach { (_, amount) ->
+               val sweepAngle = (amount / total * 360).toFloat()
+            drawArc(
+                color = colors[colorIndex % colors.size],
+                startAngle = startAngle,
+                sweepAngle = sweepAngle,
+                useCenter = true,
+                size = Size(size.width, size.height)
+            )
+            startAngle += sweepAngle
+            colorIndex++
+        }
+    }
+            Spacer(Modifier.width(16.dp))
+
+            Column(verticalArrangement = Arrangement.Center) {
+                var colorIndex = 0
+                categoryTotals.forEach { (category, amount) ->
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(16.dp)
+                                .background(colors[colorIndex % colors.size])
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("$category: $${"%.2f".format(amount)}", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    colorIndex++
+                }
+        }
+    }
+}
+
+@Serializable
+data class TransactionsGetResponse(
+    val transactions: List<PlaidTransactionRaw> = emptyList()
+)
+
+private fun computeCategoryTotals(list: List<PlaidTransaction>): Map<String, Double> {
+    return list.groupBy { it.personalFinanceCategory?.primary ?: "Other" }
+        .mapValues { it.value.sumOf { tx -> tx.amount } }
+}
+
+private fun PlaidTransactionRaw.toPlaidTransaction(): PlaidTransaction {
+    return PlaidTransaction(
+        name = this.name ?: "Unknown",
+        amount = this.amount ?: 0.0,
+        date = this.date ?: "",
+        category = this.category,
+        merchantName = this.merchant_name,
+        logoUrl = this.logo_url,
+        personalFinanceCategory = this.personal_finance_category?.let { pfc ->
+            PersonalFinanceCategory(
+                confidenceLevel = pfc.confidence_level,
+                detailed = pfc.detailed,
+                primary = pfc.primary,
+                version = pfc.version
+            )
+        },
+        paymentChannel = this.payment_channel
+    )
+}
+
+private suspend fun getPlaidTransactions(
+    context: Context,
+    accessToken: String,
+    startDate: String,
+    endDate: String,
+    count: Int = 30,
+    offset: Int = 0
+): List<PlaidTransaction> {
+    val clientId = context.getConfigValue("PLAID_CLIENT_ID")!!
+    val secret = context.getConfigValue("PLAID_SECRET")!!
+    val contentType = "application/json".toMediaType()
+    val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }
+    val client = OkHttpClient.Builder().addInterceptor(logging).build()
+    val retrofit = Retrofit.Builder()
+        .baseUrl("https://sandbox.plaid.com/")
+        .client(client)
+        .addConverterFactory(Json { ignoreUnknownKeys = true }.asConverterFactory(contentType))
+        .build()
+    val api = retrofit.create(PlaidApi::class.java)
+    val req = TransactionsGetRequest(
+        clientId,
+        secret,
+        accessToken,
+        startDate,
+        endDate,
+        TransactionsGetOptions(count.coerceIn(1, 30), offset)
+    )
+    val rawResp = api.getTransactions(req)
+    return rawResp.transactions.map { it.toPlaidTransaction() }
+}
