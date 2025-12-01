@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -193,8 +194,8 @@ fun SummaryHomeDaily() {
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFF64B5F6),
-                            Color(0xFF1976D2)
+                            Color(0xFF81C784),
+                            Color(0xFF388E3C)
                         )
                     )
                 )
@@ -249,8 +250,8 @@ fun SummaryHomeWeekly() {
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFF64B5F6),
-                            Color(0xFF1976D2)
+                            Color(0xFFBA68C8),
+                            Color(0xFF7B1FA2)
                         )
                     )
                 )
@@ -385,7 +386,8 @@ fun HomeScreen(checkMicrophonePermission: () -> Unit,
         ) {
             Text(
                 "Welcome to your Personal Secretary",
-                style = MaterialTheme.typography.headlineMedium
+                fontSize = 18.sp,
+                maxLines = 1
             )
             // I believe we should do a summarized view here, most likely will add my OpenAI calls here too.
 
