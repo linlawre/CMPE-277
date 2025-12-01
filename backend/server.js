@@ -204,10 +204,10 @@ app.post('/tasks', async (req, res) => {
 
 app.put('/tasks/:id', async (req, res) => {
   const { id } = req.params;
-  const { description, location, done, user } = req.body;
+  const { description, location, date, done, user } = req.body;
   const task = await Task.findByIdAndUpdate(
     id,
-    { description, location, done, user },
+    { description, location, date, done, user },
     { new: true }
   );
   if (!task) return res.status(404).json({ success: false, message: "Task not found" });

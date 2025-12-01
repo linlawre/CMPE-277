@@ -1,10 +1,12 @@
 package com.example.personal_secretary
 
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,7 +17,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.room.util.copy
 import com.example.personal_secretary.ui.theme.Personal_SecretaryTheme
 import kotlinx.coroutines.launch
 import retrofit2.Response
@@ -93,9 +97,10 @@ class TasksActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TasksScreen(
-    email:String,
+    email: String,
     modifier: Modifier = Modifier,
-    onBack: () -> Unit) {
+    onBack: () -> Unit
+) {
     var tasks by remember { mutableStateOf(listOf<TaskModel>()) }
     var isLoading by remember { mutableStateOf(true) }
     var showForm by remember { mutableStateOf(false) }
@@ -103,10 +108,11 @@ fun TasksScreen(
 
     val scope = rememberCoroutineScope()
 
+
     LaunchedEffect(Unit) {
         isLoading = true
         try {
-            tasks = TaskApiClient.apiService.getTasks().filter {it.user==email}
+            tasks = TaskApiClient.apiService.getTasks().filter { it.user == email }
         } catch (e: Exception) {
             e.printStackTrace()
         } finally {
@@ -137,33 +143,66 @@ fun TasksScreen(
                 .padding(16.dp)
                 .padding(paddingValues)
         ) {
-            Text(text = "Tasks", modifier = Modifier.padding(bottom = 12.dp))
+            Text(text = "Tasks", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 12.dp))
 
             when {
                 isLoading -> Text("Loading tasks...")
                 tasks.isEmpty() -> Text("No tasks found")
-                else -> LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    val sortedTasks = tasks.sortedBy { it.done }
-                    items(sortedTasks) { task ->
-                        TaskItem(task = task, onToggleDone = { toggledTask ->
-                            scope.launch {
-                                val updated = toggledTask.copy(done = !toggledTask.done)
-                                try {
-                                    val response = TaskApiClient.apiService.updateTask(toggledTask._id, TaskRequest(
-                                        description = updated.description,
-                                        location = updated.location,
-                                        done = updated.done
-                                    ))
-                                    if (response.isSuccessful) {
-                                        tasks = tasks.map { if (it._id == updated._id) updated else it }
-                                    }
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
+                else -> {
+
+                    val groupedTasks = tasks
+                        .sortedBy { it.date }
+                        .groupBy { it.date }
+
+                    val flatList = mutableListOf<Any>()
+                    groupedTasks.forEach { (date, tasksForDate) ->
+                        flatList.add(date)
+                        flatList.addAll(tasksForDate)
+                    }
+
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(flatList) { item ->
+                            when (item) {
+                                is String -> {
+                                    Text(
+                                        text = item,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        modifier = Modifier.padding(vertical = 8.dp)
+                                    )
+                                }
+                                is TaskModel -> {
+                                    TaskItem(
+                                        task = item,
+                                        onToggleDone = { toggledTask ->
+                                            scope.launch {
+                                                val updated = toggledTask.copy(done = !toggledTask.done)
+                                                try {
+                                                    val response = TaskApiClient.apiService.updateTask(
+                                                        toggledTask._id,
+                                                        TaskRequest(
+                                                            description = updated.description,
+                                                            location = updated.location,
+                                                            date = updated.date,
+                                                            done = updated.done,
+                                                            user = toggledTask.user
+                                                        )
+                                                    )
+                                                    if (response.isSuccessful) {
+                                                        tasks = tasks.map { if (it._id == updated._id) updated else it }
+                                                    }
+                                                } catch (e: Exception) {
+                                                    e.printStackTrace()
+                                                }
+                                            }
+                                        },
+                                        onClick = { selectedTask = item }
+                                    )
                                 }
                             }
-                        }, onClick = { selectedTask = task })
+                        }
                     }
                 }
             }
@@ -171,15 +210,13 @@ fun TasksScreen(
 
         if (showForm) {
             AddTaskDialog(
-                email=email,
+                email = email,
                 onDismiss = { showForm = false },
                 onSave = { newTask ->
+                    tasks = listOf(newTask.toTaskModel()) + tasks
                     scope.launch {
                         try {
-                            val response = TaskApiClient.apiService.createTask(newTask)
-                            if (response.isSuccessful) {
-                                tasks = TaskApiClient.apiService.getTasks().filter {it.user==email}
-                            }
+                            TaskApiClient.apiService.createTask(newTask)
                         } catch (e: Exception) {
                             e.printStackTrace()
                         } finally {
@@ -192,17 +229,14 @@ fun TasksScreen(
 
         selectedTask?.let { task ->
             EditTaskDialog(
-                email=email,
+                email = email,
                 task = task,
                 onDismiss = { selectedTask = null },
                 onSave = { updatedTask ->
+                    tasks = tasks.map { if (it._id == task._id) updatedTask.toTaskModel(task._id) else it }
                     scope.launch {
                         try {
-                            val taskToSend = updatedTask.copy(user=email)
-                            val response = TaskApiClient.apiService.updateTask(task._id, taskToSend)
-                            if (response.isSuccessful) {
-                                tasks = TaskApiClient.apiService.getTasks().filter {it.user==email}
-                            }
+                            TaskApiClient.apiService.updateTask(task._id, updatedTask)
                         } catch (e: Exception) {
                             e.printStackTrace()
                         } finally {
@@ -211,12 +245,10 @@ fun TasksScreen(
                     }
                 },
                 onDelete = { taskToDelete ->
+                    tasks = tasks.filter { it._id != taskToDelete._id }
                     scope.launch {
                         try {
-                            val response = TaskApiClient.apiService.deleteTask(taskToDelete._id)
-                            if (response.isSuccessful) {
-                                tasks = TaskApiClient.apiService.getTasks().filter{it.user==email}
-                            }
+                            TaskApiClient.apiService.deleteTask(taskToDelete._id)
                         } catch (e: Exception) {
                             e.printStackTrace()
                         } finally {
@@ -228,6 +260,17 @@ fun TasksScreen(
         }
     }
 }
+
+
+fun TaskRequest.toTaskModel(id: String = java.util.UUID.randomUUID().toString()): TaskModel =
+    TaskModel(
+        _id = id,
+        date = this.date,
+        description = this.description,
+        location = this.location,
+        done = this.done,
+        user = this.user
+    )
 
 @Composable
 fun TaskItem(task: TaskModel, onToggleDone: (TaskModel) -> Unit, onClick: () -> Unit) {
@@ -251,13 +294,41 @@ fun TaskItem(task: TaskModel, onToggleDone: (TaskModel) -> Unit, onClick: () -> 
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTaskDialog(
-    email:String,
+    email: String,
     onDismiss: () -> Unit,
-    onSave: (TaskRequest) -> Unit) {
+    onSave: (TaskRequest) -> Unit
+) {
     var description by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf(LocalDate.now()) }
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = date.toEpochDay() * 24 * 60 * 60 * 1000
+    )
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    val millis = datePickerState.selectedDateMillis
+                    if (millis != null) {
+                        date = LocalDate.ofEpochDay(millis / (24 * 60 * 60 * 1000))
+                    }
+                    showDatePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -275,31 +346,71 @@ fun AddTaskDialog(
                     onValueChange = { location = it },
                     label = { Text("Location (Optional)") }
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = date.toString(),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Date") },
+                    modifier = Modifier.clickable { showDatePicker = true }
+                )
             }
         },
         confirmButton = {
             Button(onClick = {
                 if (description.isNotBlank()) {
-                    onSave(TaskRequest(description = description, location = location.ifBlank { null }, user=email))
+                    onSave(
+                        TaskRequest(
+                            description = description,
+                            location = location.ifBlank { null },
+                            date = date.toString(),
+                            user = email
+                        )
+                    )
                 }
-            }) {
-                Text("Save")
-            }
+            }) { Text("Save") }
         },
         dismissButton = { Button(onClick = onDismiss) { Text("Cancel") } }
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditTaskDialog(
     task: TaskModel,
-    email:String,
+    email: String,
     onDismiss: () -> Unit,
     onSave: (TaskRequest) -> Unit,
     onDelete: (TaskModel) -> Unit
 ) {
     var description by remember { mutableStateOf(task.description) }
     var location by remember { mutableStateOf(task.location ?: "") }
+    var date by remember { mutableStateOf(LocalDate.parse(task.date)) }
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = date.toEpochDay() * 24 * 60 * 60 * 1000
+    )
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    val millis = datePickerState.selectedDateMillis
+                    if (millis != null) {
+                        date = LocalDate.ofEpochDay(millis / (24 * 60 * 60 * 1000))
+                    }
+                    showDatePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -317,16 +428,29 @@ fun EditTaskDialog(
                     onValueChange = { location = it },
                     label = { Text("Location (Optional)") }
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = date.toString(),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Date") },
+                    modifier = Modifier.clickable { showDatePicker = true }
+                )
             }
         },
         confirmButton = {
             Button(onClick = {
                 if (description.isNotBlank()) {
-                    onSave(TaskRequest(description = description, location = location.ifBlank { null }, user=email))
+                    onSave(
+                        TaskRequest(
+                            description = description,
+                            location = location.ifBlank { null },
+                            date = date.toString(),
+                            user = email
+                        )
+                    )
                 }
-            }) {
-                Text("Save")
-            }
+            }) { Text("Save") }
         },
         dismissButton = {
             Row {
@@ -337,3 +461,5 @@ fun EditTaskDialog(
         }
     )
 }
+
+
