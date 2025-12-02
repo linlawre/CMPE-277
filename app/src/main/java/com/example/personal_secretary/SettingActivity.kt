@@ -1,8 +1,10 @@
 package com.example.personal_secretary
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -13,7 +15,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-
+import androidx.compose.ui.graphics.Color
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.compose.foundation.Image
 class SettingActivity : ComponentActivity() {
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -21,10 +28,33 @@ class SettingActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val email = intent.getStringExtra("EMAIL") ?: "Unknown"
 
+        val themeState = mutableStateOf(ThemeList.currentTheme)
+        ThemeList.loadTheme(this, email) {
+            themeState.value = ThemeList.currentTheme
+        }
         setContent {
             val context = LocalContext.current
             var showThemeDialog by remember { mutableStateOf(false) }
-            var currentTheme by remember { mutableStateOf(ThemeList.currentTheme) }
+            var showPasswordDialog by remember { mutableStateOf(false) }
+            var oldPassword by remember { mutableStateOf("") }
+            var newPassword by remember { mutableStateOf("") }
+            var changePasswordMessage by remember { mutableStateOf<String?>(null) }
+            Box(modifier = Modifier.fillMaxSize()) {
+
+                if (themeState.value.backgroundRes != 0) {
+                    Image(
+                        painter = androidx.compose.ui.res.painterResource(id = themeState.value.backgroundRes),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.45f))
+                )
 
             Scaffold(
                 topBar = {
@@ -39,7 +69,8 @@ class SettingActivity : ComponentActivity() {
                             }
                         }
                     )
-                }
+                },
+                containerColor = Color.Transparent
             ) { paddingValues ->
                 Column(
                     modifier = Modifier
@@ -49,8 +80,29 @@ class SettingActivity : ComponentActivity() {
                     verticalArrangement = Arrangement.Top,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Button(onClick = { showThemeDialog = true }) {
+                    Button(
+                        onClick = { showThemeDialog = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Text("Change Theme")
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = { showPasswordDialog = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Change Password")
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(onClick = {
+                        context.startActivity(Intent(context, LoginActivity::class.java))
+                        finish()
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Logout")
                     }
 
                     if (showThemeDialog) {
@@ -66,13 +118,16 @@ class SettingActivity : ComponentActivity() {
                                                 .padding(vertical = 8.dp)
                                                 .clickable {
                                                     ThemeList.saveTheme(context, email, theme) {
-                                                        currentTheme = theme
+                                                        themeState.value = theme
                                                     }
                                                     showThemeDialog = false
                                                 },
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text(theme.name, style = MaterialTheme.typography.bodyMedium)
+                                            Text(
+                                                theme.name,
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
                                         }
                                     }
                                 }
@@ -82,8 +137,72 @@ class SettingActivity : ComponentActivity() {
                             }
                         )
                     }
+
+                    if (showPasswordDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showPasswordDialog = false },
+                            title = { Text("Change Password") },
+                            text = {
+                                Column {
+                                    OutlinedTextField(
+                                        value = oldPassword,
+                                        onValueChange = { oldPassword = it },
+                                        label = { Text("Old Password") },
+                                        singleLine = true
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    OutlinedTextField(
+                                        value = newPassword,
+                                        onValueChange = { newPassword = it },
+                                        label = { Text("New Password") },
+                                        singleLine = true
+                                    )
+                                    changePasswordMessage?.let {
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(it, color = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                Button(onClick = {
+                                    showPasswordDialog = false
+                                    changePasswordMessage = null
+                                    CoroutineScope(Dispatchers.IO).launch {
+                                        try {
+                                            val response = NetworkClient.changePassword(
+                                                email,
+                                                oldPassword,
+                                                newPassword
+                                            )
+                                            withContext(Dispatchers.Main) {
+                                                changePasswordMessage = if (response.success) {
+                                                    "Password changed successfully!"
+                                                } else {
+                                                    response.message ?: "Failed to change password"
+                                                }
+                                            }
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) {
+                                                changePasswordMessage =
+                                                    "Error: ${e.localizedMessage}"
+                                            }
+                                        }
+                                    }
+                                }) {
+                                    Text("Submit")
+                                }
+                            },
+                            dismissButton = {
+                                Button(onClick = { showPasswordDialog = false }) {
+                                    Text("Cancel")
+                                }
+                            })
+
+                    }
                 }
             }
-        }
-    }
-}
+                }
+            }
+        }}
+
+

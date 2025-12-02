@@ -41,6 +41,7 @@ import kotlin.coroutines.resume
 
 class WeatherActivity : ComponentActivity() {
 
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -120,7 +121,6 @@ fun WeatherCard() {
     }
 }
 
-// Retrofit API
 interface WeatherApi {
     @GET("onecall/day_summary")
     suspend fun getDaySummary(
@@ -133,6 +133,11 @@ interface WeatherApi {
 }
 
 suspend fun fetchWeather(context: Context, onResult: (String) -> Unit) {
+    val client = okhttp3.OkHttpClient.Builder()
+        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
     try {
         val fused = LocationServices.getFusedLocationProviderClient(context)
 
@@ -163,8 +168,10 @@ suspend fun fetchWeather(context: Context, onResult: (String) -> Unit) {
         val contentType = "application/json".toMediaType()
         val retrofit = Retrofit.Builder()
             .baseUrl("https://api.openweathermap.org/data/3.0/")
+            .client(client)
             .addConverterFactory(Json { ignoreUnknownKeys = true }.asConverterFactory(contentType))
             .build()
+
 
         val api = retrofit.create(WeatherApi::class.java)
 
@@ -186,6 +193,7 @@ suspend fun fetchWeather(context: Context, onResult: (String) -> Unit) {
     } catch (e: Exception) {
         e.printStackTrace()
         onResult("Error fetching weather: ${e.localizedMessage}")
+
     }
 }
 

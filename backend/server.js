@@ -232,8 +232,34 @@ app.get('/debug/tasks', async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching tasks:", err);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(500).json({ success: false, message: "Could not fetch" });
   }
+});
+
+app.post("/change-password", async (req, res) => {
+    try {
+        const { email, oldPassword, newPassword } = req.body;
+
+        if (!email || !oldPassword || !newPassword) {
+            return res.status(400).json({ success: false, message: "Missing required fields" });
+        }
+
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+        const match = await bcrypt.compare(oldPassword, user.password);
+        if (!match) {
+            return res.status(401).json({ success: false, message: "Wrong password" });
+        }
+        const hashedNew = await bcrypt.hash(newPassword, 10);
+        user.password = hashedNew;
+        await user.save();
+        res.json({ success: true, message: "Password updated successfully" });
+    } catch (err) {
+        console.error("Error changing password:", err);
+        res.status(500).json({ success: false, message: "Couldn't change your password" });
+    }
 });
 
 
