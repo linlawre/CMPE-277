@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -63,6 +64,7 @@ import coil.compose.AsyncImage
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -176,7 +178,7 @@ fun PlaidScreen(onBack: () -> Unit) {
                 title = { Text("Spending Habits (Beta)") },
                 navigationIcon = {
                     IconButton(onClick = { onBack() }) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -373,6 +375,7 @@ interface BackendApi {
     suspend fun sendPrompt(@Url url: String, @Body body: BackendRequest): Response<BackendResponse>
 }
 
+@OptIn(ExperimentalSerializationApi::class)
 suspend fun sendToBackend(
     context: Context,
     prompt: String,
@@ -627,6 +630,7 @@ private fun PlaidTransactionRaw.toPlaidTransaction(): PlaidTransaction {
     )
 }
 
+@OptIn(ExperimentalSerializationApi::class)
 private suspend fun getPlaidTransactions(
     context: Context,
     accessToken: String,

@@ -3,12 +3,14 @@ package com.example.personal_secretary
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -45,6 +47,7 @@ import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFact
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -148,6 +151,8 @@ interface WeatherApi {
     ): DaySummaryResponse
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
+@OptIn(ExperimentalSerializationApi::class)
 suspend fun fetchWeather(context: Context, onResult: (String) -> Unit) {
     val client = okhttp3.OkHttpClient.Builder()
         .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
@@ -234,10 +239,10 @@ suspend fun requestFreshLocation(
         }
     }
 
-    // Begin listening
+
     fused.requestLocationUpdates(request, callback, context.mainLooper)
 
-    // Timeout fallback
+
     kotlinx.coroutines.GlobalScope.launch {
         kotlinx.coroutines.delay(4000L)
         if (cont.isActive) {

@@ -18,19 +18,18 @@ object ThemeList {
 
         companion object {
             fun fromName(name: String): Theme {
-                return values().find { it.name == name } ?: DEFAULT
+                return Theme.entries.find { it.name == name } ?: DEFAULT
             }
         }
     }
 
     var currentTheme by mutableStateOf(Theme.DEFAULT)
 
-    fun getBackground(): Int = currentTheme.backgroundRes
 
     fun loadTheme(context: Context, userId: String, onComplete: (() -> Unit)? = null) {
         val repository = ThemeRepository(context)
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-            val themeName = repository.getUserTheme(userId) ?: "DEFAULT"
+            val themeName = repository.getUserTheme(userId)
             currentTheme = Theme.fromName(themeName)
             onComplete?.let { it() }
         }

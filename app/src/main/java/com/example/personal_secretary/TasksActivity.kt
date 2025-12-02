@@ -535,7 +535,7 @@ class TasksActivity : ComponentActivity() {
         var isListening by remember { mutableStateOf(false) }
 
         val recognizer = remember {
-            android.speech.SpeechRecognizer.createSpeechRecognizer(context)
+            SpeechRecognizer.createSpeechRecognizer(context)
         }
 
         val recognizerIntent = remember {

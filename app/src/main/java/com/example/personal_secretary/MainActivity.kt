@@ -3,12 +3,14 @@ package com.example.personal_secretary
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.StickyNote2
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.CalendarViewWeek
 import androidx.compose.material.icons.filled.Checklist
@@ -216,6 +219,7 @@ fun WeatherCardHome() {
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun SummaryHomeDaily(email: String) {
     val context = LocalContext.current
@@ -346,6 +350,7 @@ fun SummaryHomeDaily(email: String) {
     }
 }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     @Composable
     fun SummaryHomeWeekly(email: String) {
         val context = LocalContext.current
@@ -548,7 +553,7 @@ fun SummaryHomeDaily(email: String) {
                                 },
                                 icon = {
                                     Icon(
-                                        Icons.Default.StickyNote2,
+                                        Icons.AutoMirrored.Filled.StickyNote2,
                                         contentDescription = "Notes"
                                     )
                                 },

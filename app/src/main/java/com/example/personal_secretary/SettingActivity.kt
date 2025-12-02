@@ -132,7 +132,7 @@ class SettingActivity : ComponentActivity() {
                             title = { Text("Select Theme") },
                             text = {
                                 Column {
-                                    ThemeList.Theme.values().forEach { theme ->
+                                    ThemeList.Theme.entries.forEach { theme ->
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()

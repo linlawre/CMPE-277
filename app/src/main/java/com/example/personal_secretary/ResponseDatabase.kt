@@ -81,7 +81,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "ai_response_db"
                 )
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigration(false)
                     .build()
 
                 INSTANCE = instance
@@ -127,7 +127,4 @@ class ThemeRepository(context: Context) {
         dao.saveTheme(UserTheme(userId, theme))
     }
 
-    suspend fun clearUserTheme(userId: String) {
-        dao.clearTheme(userId)
-    }
 }
