@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,15 +16,18 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import com.example.personal_secretary.notes.NoteModel
-import com.example.personal_secretary.ui.theme.Personal_SecretaryTheme
 import kotlinx.coroutines.launch
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.*
 import java.time.LocalDate
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 
 data class NoteRequest(
     val date: String,
@@ -68,8 +72,25 @@ class NotesActivity : ComponentActivity() {
         email = intent.getStringExtra("EMAIL").toString()
         Log.d("NotesActivity", "Current email: $email")
         setContent {
-            Personal_SecretaryTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
+            val theme = ThemeList.currentTheme
+            Box(modifier = Modifier.fillMaxSize()) {
+
+                if (theme.backgroundRes != 0) {
+                    Image(
+                        painter = painterResource(id = theme.backgroundRes),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.3f))
+                )
+                Surface(modifier = Modifier.fillMaxSize(),
+                    color = Color.Transparent) {
                     NotesScreen(
                         email = email,
                         onBack = { finish() }
@@ -145,7 +166,8 @@ fun NotesScreen(
             FloatingActionButton(onClick = { showBottomSheet = true }) {
                 Icon(Icons.Default.Add, contentDescription = "Add Note")
             }
-        }
+        },
+        containerColor = Color.Transparent
     ) { paddingValues ->
 
         Column(
@@ -154,8 +176,6 @@ fun NotesScreen(
                 .padding(16.dp)
                 .padding(paddingValues)
         ) {
-            Text(text = "Notes", modifier = Modifier.padding(bottom = 12.dp))
-
             when {
                 isLoading -> Text("Loading notes...")
                 notes.isEmpty() -> Text("No notes found")
@@ -272,7 +292,8 @@ fun NotesScreen(
 fun NoteItem(note: NoteModel, onClick: () -> Unit) {
     Card(modifier = Modifier
         .fillMaxWidth()
-        .clickable { onClick()}
+        .clickable { onClick()},
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha=0.8f))
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(text = note.date)

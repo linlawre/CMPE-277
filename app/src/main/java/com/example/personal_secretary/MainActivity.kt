@@ -25,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.example.personal_secretary.ui.theme.Personal_SecretaryTheme
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.shape.*
 import androidx.compose.foundation.verticalScroll
@@ -34,6 +33,7 @@ import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -41,10 +41,14 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import java.time.DayOfWeek
 import java.time.temporal.TemporalAdjusters
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.text.TextStyle
 
 class MainActivity : ComponentActivity() {
 
@@ -64,16 +68,18 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
 
-        setContent {
-            Personal_SecretaryTheme {
-                HomeScreen(
-                    checkMicrophonePermission = { checkMicrophonePermission() },
-                    email=email
-                )
+
+        ThemeList.loadTheme(this, email) {
+            runOnUiThread {
+                setContent {
+                    HomeScreen(
+                        checkMicrophonePermission = { checkMicrophonePermission() },
+                        email = email
+                    )
+                }
             }
         }
     }
-
     private fun checkMicrophonePermission() {
         when {
             ContextCompat.checkSelfPermission(
@@ -460,6 +466,9 @@ fun SummaryHomeDaily(email: String) {
         val context = LocalContext.current
         val lifecycle = LocalLifecycleOwner.current.lifecycle
         val scrollState = rememberScrollState()
+
+
+
         DisposableEffect(Unit) {
 
 
@@ -476,110 +485,168 @@ fun SummaryHomeDaily(email: String) {
             }
         }
 
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-
-
-            bottomBar = {
-                NavigationBar {
-                    NavigationBarItem(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                        label = { Text("Home") }
-                    )
-
-                    NavigationBarItem(
-                        selected = selectedTab == 1,
-                        onClick = {
-                            selectedTab = 1
-                            context.startActivity(
-                                Intent(context, NotesActivity::class.java).apply {
-                                    putExtra("EMAIL", email)
-                                }
-                            )
-                        },
-                        icon = { Icon(Icons.Default.StickyNote2, contentDescription = "Notes") },
-                        label = { Text("Notes") }
-                    )
-
-                    NavigationBarItem(
-                        selected = selectedTab == 2,
-                        onClick = {
-                            selectedTab = 2
-                            context.startActivity(
-                                Intent(context, TasksActivity::class.java).apply {
-                                    putExtra("EMAIL", email)
-                                }
-                            )
-                        },
-                        icon = { Icon(Icons.Default.Checklist, contentDescription = "Tasks") },
-                        label = { Text("Tasks") }
-                    )
-
-                    NavigationBarItem(
-                        selected = selectedTab == 3,
-                        onClick = {
-                            selectedTab = 3
-                            context.startActivity(Intent(context, PlaidActivity::class.java))
-                        },
-                        icon = { Icon(Icons.Default.AttachMoney, contentDescription = "Budget") },
-                        label = { Text("Budget") }
-                    )
-
-                    NavigationBarItem(
-                        selected = selectedTab == 4,
-                        onClick = { selectedTab = 4 },
-                        icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                        label = { Text("Settings") }
-                    )
-                }
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (ThemeList.currentTheme.backgroundRes != 0) {
+                Image(
+                    painter = painterResource(id = ThemeList.currentTheme.backgroundRes),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
             }
 
-
-        ) { innerPadding ->
-
-
-            Column(
-                modifier = Modifier
-                    .padding(innerPadding)
-                    .fillMaxSize()
-                    .verticalScroll(scrollState)
-                    .padding(24.dp),
-
-                verticalArrangement = Arrangement.Top
-            ) {
-                Text(
-                    "Welcome to your Personal Secretary",
-                    fontSize = 18.sp,
-                    maxLines = 1
-                )
-                // I believe we should do a summarized view here, most likely will add my OpenAI calls here too.
-
-                Spacer(modifier = Modifier.height(24.dp))
-                WeatherCardHome()
-
-                //This one we might not keep on this page, maybe throw it into the notes/task section
-                Button(onClick = checkMicrophonePermission) {
-                    Text("Enable Microphone")
-                }
-                SummaryHomeDaily(email)
-                SummaryHomeWeekly(email)
-                Spacer(modifier = Modifier.height(24.dp))
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    containerColor = Color.Transparent,
 
 
-                //Temporarily leave this here so we can test the login activity, but eventually we should be starting at Login -> Go to main
-                Button(
-                    onClick = {
-                        context.startActivity(Intent(context, LoginActivity::class.java))
+
+                    bottomBar = {
+                        NavigationBar {
+                            NavigationBarItem(
+                                selected = selectedTab == 0,
+                                onClick = { selectedTab = 0 },
+                                icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
+                                label = { Text("Home") }
+                            )
+
+                            NavigationBarItem(
+                                selected = selectedTab == 1,
+                                onClick = {
+                                    selectedTab = 1
+                                    context.startActivity(
+                                        Intent(context, NotesActivity::class.java).apply {
+                                            putExtra("EMAIL", email)
+                                        }
+                                    )
+                                },
+                                icon = {
+                                    Icon(
+                                        Icons.Default.StickyNote2,
+                                        contentDescription = "Notes"
+                                    )
+                                },
+                                label = { Text("Notes") }
+                            )
+
+                            NavigationBarItem(
+                                selected = selectedTab == 2,
+                                onClick = {
+                                    selectedTab = 2
+                                    context.startActivity(
+                                        Intent(context, TasksActivity::class.java).apply {
+                                            putExtra("EMAIL", email)
+                                        }
+                                    )
+                                },
+                                icon = {
+                                    Icon(
+                                        Icons.Default.Checklist,
+                                        contentDescription = "Tasks"
+                                    )
+                                },
+                                label = { Text("Tasks") }
+                            )
+
+                            NavigationBarItem(
+                                selected = selectedTab == 3,
+                                onClick = {
+                                    selectedTab = 3
+                                    context.startActivity(
+                                        Intent(
+                                            context,
+                                            PlaidActivity::class.java
+                                        )
+                                    )
+                                },
+                                icon = {
+                                    Icon(
+                                        Icons.Default.AttachMoney,
+                                        contentDescription = "Budget"
+                                    )
+                                },
+                                label = { Text("Budget") }
+                            )
+
+                            NavigationBarItem(
+                                selected = selectedTab == 4,
+                                onClick = {
+                                    selectedTab = 4
+                                    context.startActivity(
+                                        Intent(context, SettingActivity::class.java).apply {
+                                            putExtra("EMAIL", email)
+                                        }
+                                    )
+                                },
+                                icon = {
+                                    Icon(
+                                        Icons.Default.Settings,
+                                        contentDescription = "Settings"
+                                    )
+                                },
+                                label = { Text("Settings") }
+                            )
+                        }
                     }
-                ) {
-                    Text("Open Login Page")
+
+
+                ) { innerPadding ->
+
+
+                    Column(
+                        modifier = Modifier
+                            .padding(innerPadding)
+                            .fillMaxSize()
+                            .verticalScroll(scrollState)
+                            .padding(24.dp),
+
+                        verticalArrangement = Arrangement.Top
+                    ) {
+                        Box (
+                            modifier = Modifier.fillMaxWidth()
+                                .background((Color(0xAA000000)))
+                                .padding(8.dp)
+                        ) {
+                            Text(
+                                "Welcome to your Personal Secretary",
+                                fontSize = 18.sp,
+                                maxLines = 1,
+                                color=Color.White,
+                                style = TextStyle(
+                                    shadow = Shadow(
+                                        color = Color.Black,
+                                        offset = Offset(2f, 2f),
+                                        blurRadius = 4f
+                                    )
+                                )
+                            )
+                        }
+                        // I believe we should do a summarized view here, most likely will add my OpenAI calls here too.
+
+                        Spacer(modifier = Modifier.height(24.dp))
+                        WeatherCardHome()
+
+                        //This one we might not keep on this page, maybe throw it into the notes/task section
+                        Button(onClick = checkMicrophonePermission) {
+                            Text("Enable Microphone")
+                        }
+                        SummaryHomeDaily(email)
+                        SummaryHomeWeekly(email)
+                        Spacer(modifier = Modifier.height(24.dp))
+
+
+                        //Temporarily leave this here so we can test the login activity, but eventually we should be starting at Login -> Go to main
+                        Button(
+                            onClick = {
+                                context.startActivity(Intent(context, LoginActivity::class.java))
+                            }
+                        ) {
+                            Text("Open Login Page")
+                        }
+
+
+                    }
                 }
-
-
             }
         }
-    }
-
 
