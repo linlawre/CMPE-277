@@ -224,10 +224,19 @@ fun SummaryHomeDaily(email: String) {
                     }
                 }
 
+                val repo = ResponseRepository(context)
+                val userId = email
 
-                text = "Generating summary..."
-                val response = sendToBackend(context, prompt)
-                text = response
+                val saved = repo.getSavedResponse(userId)
+                if (saved != null) {
+                    text = saved.response
+                } else {
+                    text = "Generating summary..."
+                    val response = sendToBackend(context, prompt)
+                    text = response
+                    repo.saveResponse(userId,LocalDate.now().toString(), response)
+                }
+
             }
         } catch (e: Exception) {
             error = "Error generating daily summary: ${e.localizedMessage ?: "unknown"}"
@@ -353,10 +362,18 @@ fun SummaryHomeDaily(email: String) {
                             append("\n")
                         }
                     }
+                    val repo = ResponseRepository(context)
+                    val userId = email
 
-                    text = "Generating quick summary..."
-                    val response = sendToBackend(context, prompt)
-                    text = response
+                    val saved = repo.getSavedResponse(userId)
+                    if (saved != null) {
+                        text = saved.response
+                    } else {
+                        text = "Generating quick summary..."
+                        val response = sendToBackend(context, prompt)
+                        text = response
+                        repo.saveResponse(userId, LocalDate.now().toString(), response)
+                    }
                 }
             } catch (e: Exception) {
                 error = "Error generating weekly summary: ${e.localizedMessage ?: "unknown"}"

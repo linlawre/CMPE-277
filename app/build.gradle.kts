@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     id("org.jetbrains.kotlin.plugin.serialization") version "1.9.0"
+    id("kotlin-kapt")
 }
 
 android {
@@ -79,9 +80,10 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.9.0")
     implementation("androidx.core:core-splashscreen:1.0.1")
-
-
     implementation("io.coil-kt:coil-compose:2.4.0")
+    implementation ("androidx.room:room-runtime:2.8.4")
+    implementation ("androidx.room:room-ktx:2.8.4")
+    kapt ("androidx.room:room-compiler:2.8.4")
 
-
+    implementation("org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.7.0")
 }

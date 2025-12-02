@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.personal_secretary.ui.theme.Personal_SecretaryTheme
 import kotlinx.coroutines.launch
@@ -104,6 +105,8 @@ fun TasksScreen(
 
     val scope = rememberCoroutineScope()
 
+    val userId = email
+    val repo = ResponseRepository(LocalContext.current)
 
     LaunchedEffect(Unit) {
         isLoading = true
@@ -213,6 +216,7 @@ fun TasksScreen(
                     scope.launch {
                         try {
                             TaskApiClient.apiService.createTask(newTask)
+                            repo.clearResponse(userId)
                         } catch (e: Exception) {
                             e.printStackTrace()
                         } finally {
@@ -233,6 +237,7 @@ fun TasksScreen(
                     scope.launch {
                         try {
                             TaskApiClient.apiService.updateTask(task._id, updatedTask)
+                            repo.clearResponse(userId)
                         } catch (e: Exception) {
                             e.printStackTrace()
                         } finally {
@@ -245,6 +250,7 @@ fun TasksScreen(
                     scope.launch {
                         try {
                             TaskApiClient.apiService.deleteTask(taskToDelete._id)
+                            repo.clearResponse(userId)
                         } catch (e: Exception) {
                             e.printStackTrace()
                         } finally {
