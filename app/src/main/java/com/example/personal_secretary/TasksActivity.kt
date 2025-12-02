@@ -2,35 +2,78 @@ package com.example.personal_secretary
 
 
 import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import com.example.personal_secretary.ui.theme.Personal_SecretaryTheme
 import kotlinx.coroutines.launch
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import retrofit2.http.*
+import retrofit2.http.Body
+import retrofit2.http.DELETE
+import retrofit2.http.GET
+import retrofit2.http.POST
+import retrofit2.http.PUT
+import retrofit2.http.Path
 import java.time.LocalDate
-import com.example.personal_secretary.ThemeList
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.ui.graphics.Color
+
 data class TaskModel(
     val _id: String,
     val date: String,
@@ -48,7 +91,9 @@ data class TaskRequest(
     val user: String ="guest"
 )
 
-
+object TempSpeechBuffer {
+    var text: String = ""
+}
 interface TaskApiService {
     @GET("tasks")
     suspend fun getTasks(): List<TaskModel>
@@ -150,9 +195,19 @@ class TasksActivity : ComponentActivity() {
                     }
                 )
             },
+
             floatingActionButton = {
-                FloatingActionButton(onClick = { showForm = true }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Task")
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    FloatingActionButton(onClick = { showForm = true }) {
+                        Icon(Icons.Default.Add, contentDescription = "Add Task")
+                    }
+                    SpeechToTextButton { spokenText ->
+                        showForm = true
+                        selectedTask = null
+                        TempSpeechBuffer.text = spokenText
+                    }
                 }
             }
         ) { paddingValues ->
@@ -338,14 +393,21 @@ class TasksActivity : ComponentActivity() {
         onDismiss: () -> Unit,
         onSave: (TaskRequest) -> Unit
     ) {
-        var description by remember { mutableStateOf("") }
+        var description by remember { mutableStateOf(TempSpeechBuffer.text) }
         var location by remember { mutableStateOf("") }
         var date by remember { mutableStateOf(LocalDate.now()) }
         var showDatePicker by remember { mutableStateOf(false) }
 
+
         val datePickerState = rememberDatePickerState(
             initialSelectedDateMillis = date.toEpochDay() * 24 * 60 * 60 * 1000
         )
+        LaunchedEffect(Unit) {
+            if (TempSpeechBuffer.text.isNotEmpty()) {
+                description = TempSpeechBuffer.text
+                TempSpeechBuffer.text = ""
+            }
+        }
 
         if (showDatePicker) {
             DatePickerDialog(
@@ -410,7 +472,69 @@ class TasksActivity : ComponentActivity() {
             dismissButton = { Button(onClick = onDismiss) { Text("Cancel") } }
         )
     }
+    @Composable
+    fun SpeechToTextButton(onResult: (String) -> Unit) {
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
 
+        var isListening by remember { mutableStateOf(false) }
+
+        val recognizer = remember {
+            android.speech.SpeechRecognizer.createSpeechRecognizer(context)
+        }
+
+        val recognizerIntent = remember {
+            android.content.Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
+            }
+        }
+
+        val launcher = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            if (granted) {
+                recognizer.startListening(recognizerIntent)
+                isListening = true
+            } else {
+                onResult("Microphone permission denied")
+            }
+        }
+
+        DisposableEffect(Unit) {
+            recognizer.setRecognitionListener(object : RecognitionListener {
+                override fun onResults(results: Bundle) {
+                    isListening = false
+                    val spoken = results
+                        .getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        ?.firstOrNull() ?: ""
+                    onResult(spoken)
+                }
+                override fun onError(error: Int) { isListening = false }
+                override fun onReadyForSpeech(params: Bundle) {}
+                override fun onBeginningOfSpeech() {}
+                override fun onRmsChanged(rms: Float) {}
+                override fun onBufferReceived(buffer: ByteArray) {}
+                override fun onEndOfSpeech() {}
+                override fun onPartialResults(partialResults: Bundle) {}
+                override fun onEvent(eventType: Int, params: Bundle) {}
+            })
+
+            onDispose { recognizer.destroy() }
+        }
+
+        FloatingActionButton(
+            onClick = {
+                launcher.launch(android.Manifest.permission.RECORD_AUDIO)
+            }
+        ) {
+            if (isListening)
+                CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp)
+            else
+                Icon(Icons.Default.Mic, "Tap for Speech to Text")
+        }
+    }
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun EditTaskDialog(

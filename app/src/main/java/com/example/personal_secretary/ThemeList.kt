@@ -2,11 +2,10 @@ package com.example.personal_secretary
 
 import android.content.Context
 import androidx.annotation.DrawableRes
-
-import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 
 object ThemeList {
 
