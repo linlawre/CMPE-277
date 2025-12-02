@@ -627,22 +627,22 @@ fun SummaryHomeDaily(email: String) {
                         WeatherCardHome()
 
                         //This one we might not keep on this page, maybe throw it into the notes/task section
-                        Button(onClick = checkMicrophonePermission) {
-                            Text("Enable Microphone")
-                        }
+                      //  Button(onClick = checkMicrophonePermission) {
+                       //     Text("Enable Microphone")
+                       // }
                         SummaryHomeDaily(email)
                         SummaryHomeWeekly(email)
                         Spacer(modifier = Modifier.height(24.dp))
 
 
                         //Temporarily leave this here so we can test the login activity, but eventually we should be starting at Login -> Go to main
-                        Button(
-                            onClick = {
-                                context.startActivity(Intent(context, LoginActivity::class.java))
-                            }
-                        ) {
-                            Text("Open Login Page")
-                        }
+                      //  Button(
+                      //      onClick = {
+                      //          context.startActivity(Intent(context, LoginActivity::class.java))
+                      //      }
+                      //  ) {
+                      //      Text("Open Login Page")
+                      //  }
 
 
                     }
