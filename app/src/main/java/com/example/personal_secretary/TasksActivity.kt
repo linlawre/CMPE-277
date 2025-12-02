@@ -1,6 +1,11 @@
 package com.example.personal_secretary
 
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -62,6 +67,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.workDataOf
 import kotlinx.coroutines.launch
 import retrofit2.Response
 import retrofit2.Retrofit
@@ -73,6 +81,7 @@ import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
 import java.time.LocalDate
+import java.util.concurrent.TimeUnit
 
 data class TaskModel(
     val _id: String,
@@ -126,6 +135,21 @@ class TasksActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val permissionLauncher = registerForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { isGranted ->
+                if (!isGranted) {
+                    Log.d("TasksActivity", "Notification permission denied")
+                }
+            }
+
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
         email = intent.getStringExtra("EMAIL").toString()
         Log.d("NotesActivity", "Current email: $email")
         setContent {
@@ -153,8 +177,37 @@ class TasksActivity : ComponentActivity() {
                 }
             }
         }
-    }
+        fun createNotificationChannel() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    "tasks_channel",
+                    "Personal Secretary",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Channel for task reminders"
+                }
+                val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                manager.createNotificationChannel(channel)
+            }
+        }
+        createNotificationChannel()
 
+    }
+    fun scheduleTestNotification(context: Context, task: TaskModel) {
+        val delay = 10_000L
+
+        val workRequest = OneTimeWorkRequestBuilder<TaskNotifications>()
+            .setInitialDelay(delay, TimeUnit.MILLISECONDS)
+            .setInputData(
+                workDataOf(
+                    "task_id" to task._id,
+                    "task_description" to task.description
+                )
+            )
+            .build()
+
+        WorkManager.getInstance(context).enqueue(workRequest)
+    }
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun TasksScreen(
@@ -294,13 +347,15 @@ class TasksActivity : ComponentActivity() {
                     }
                 }
             }
-
+            val context = LocalContext.current
             if (showForm) {
                 AddTaskDialog(
                     email = email,
                     onDismiss = { showForm = false },
                     onSave = { newTask ->
-                        tasks = listOf(newTask.toTaskModel()) + tasks
+                        val createdTask = newTask.toTaskModel()
+                        tasks = listOf(createdTask) + tasks
+                        scheduleTestNotification(context, createdTask)
                         scope.launch {
                             try {
                                 TaskApiClient.apiService.createTask(newTask)
