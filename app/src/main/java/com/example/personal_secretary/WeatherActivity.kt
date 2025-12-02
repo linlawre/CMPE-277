@@ -197,7 +197,6 @@ suspend fun fetchWeather(context: Context, onResult: (String) -> Unit) {
     }
 }
 
-
 suspend fun requestFreshLocation(
     context: Context,
     fused: FusedLocationProviderClient

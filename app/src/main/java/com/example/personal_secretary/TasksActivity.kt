@@ -2,6 +2,9 @@ package com.example.personal_secretary
 
 
 import android.os.Bundle
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.speech.RecognitionListener
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -31,6 +34,10 @@ import com.example.personal_secretary.ThemeList
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.Mic
+
 data class TaskModel(
     val _id: String,
     val date: String,
@@ -48,7 +55,9 @@ data class TaskRequest(
     val user: String ="guest"
 )
 
-
+object TempSpeechBuffer {
+    var text: String = ""
+}
 interface TaskApiService {
     @GET("tasks")
     suspend fun getTasks(): List<TaskModel>
@@ -150,9 +159,19 @@ class TasksActivity : ComponentActivity() {
                     }
                 )
             },
+
             floatingActionButton = {
-                FloatingActionButton(onClick = { showForm = true }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Task")
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    FloatingActionButton(onClick = { showForm = true }) {
+                        Icon(Icons.Default.Add, contentDescription = "Add Task")
+                    }
+                    SpeechToTextButton { spokenText ->
+                        showForm = true
+                        selectedTask = null
+                        TempSpeechBuffer.text = spokenText
+                    }
                 }
             }
         ) { paddingValues ->
@@ -338,14 +357,21 @@ class TasksActivity : ComponentActivity() {
         onDismiss: () -> Unit,
         onSave: (TaskRequest) -> Unit
     ) {
-        var description by remember { mutableStateOf("") }
+        var description by remember { mutableStateOf(TempSpeechBuffer.text) }
         var location by remember { mutableStateOf("") }
         var date by remember { mutableStateOf(LocalDate.now()) }
         var showDatePicker by remember { mutableStateOf(false) }
 
+
         val datePickerState = rememberDatePickerState(
             initialSelectedDateMillis = date.toEpochDay() * 24 * 60 * 60 * 1000
         )
+        LaunchedEffect(Unit) {
+            if (TempSpeechBuffer.text.isNotEmpty()) {
+                description = TempSpeechBuffer.text
+                TempSpeechBuffer.text = ""
+            }
+        }
 
         if (showDatePicker) {
             DatePickerDialog(
@@ -410,7 +436,69 @@ class TasksActivity : ComponentActivity() {
             dismissButton = { Button(onClick = onDismiss) { Text("Cancel") } }
         )
     }
+    @Composable
+    fun SpeechToTextButton(onResult: (String) -> Unit) {
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
 
+        var isListening by remember { mutableStateOf(false) }
+
+        val recognizer = remember {
+            android.speech.SpeechRecognizer.createSpeechRecognizer(context)
+        }
+
+        val recognizerIntent = remember {
+            android.content.Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
+            }
+        }
+
+        val launcher = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            if (granted) {
+                recognizer.startListening(recognizerIntent)
+                isListening = true
+            } else {
+                onResult("Microphone permission denied")
+            }
+        }
+
+        DisposableEffect(Unit) {
+            recognizer.setRecognitionListener(object : RecognitionListener {
+                override fun onResults(results: Bundle) {
+                    isListening = false
+                    val spoken = results
+                        .getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        ?.firstOrNull() ?: ""
+                    onResult(spoken)
+                }
+                override fun onError(error: Int) { isListening = false }
+                override fun onReadyForSpeech(params: Bundle) {}
+                override fun onBeginningOfSpeech() {}
+                override fun onRmsChanged(rms: Float) {}
+                override fun onBufferReceived(buffer: ByteArray) {}
+                override fun onEndOfSpeech() {}
+                override fun onPartialResults(partialResults: Bundle) {}
+                override fun onEvent(eventType: Int, params: Bundle) {}
+            })
+
+            onDispose { recognizer.destroy() }
+        }
+
+        FloatingActionButton(
+            onClick = {
+                launcher.launch(android.Manifest.permission.RECORD_AUDIO)
+            }
+        ) {
+            if (isListening)
+                CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp)
+            else
+                Icon(Icons.Default.Mic, "Tap for Speech to Text")
+        }
+    }
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun EditTaskDialog(
