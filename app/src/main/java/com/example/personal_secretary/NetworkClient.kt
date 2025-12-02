@@ -50,4 +50,17 @@ object NetworkClient {
             setBody(AuthRequest(email, password))
         }.body()
     }
+
+
+    @Serializable
+    data class ChangePasswordRequest(val email: String, val oldPassword: String, val newPassword: String)
+    @Serializable
+    data class ChangePasswordResponse(val success: Boolean, val message: String? = null)
+
+    suspend fun changePassword(email: String, oldPassword: String, newPassword: String): ChangePasswordResponse {
+        return client.post("http://10.0.2.2:4000/change-password") {
+            contentType(ContentType.Application.Json)
+            setBody(ChangePasswordRequest(email, oldPassword, newPassword))
+        }.body()
+    }
 }

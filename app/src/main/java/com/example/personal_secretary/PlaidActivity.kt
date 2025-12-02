@@ -44,14 +44,36 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import coil.compose.AsyncImage
 import java.net.UnknownHostException
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+
+import androidx.compose.ui.res.painterResource
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 
 class PlaidActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            Personal_SecretaryTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
+            val theme = ThemeList.currentTheme
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (theme.backgroundRes != 0) {
+                    Image(
+                        painter = painterResource(id = theme.backgroundRes),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.3f))
+                )
+
+                Surface(modifier = Modifier.fillMaxSize(), color=Color.Transparent) {
                     PlaidScreen(onBack = { finish() })
                 }
             }
@@ -85,12 +107,18 @@ fun PlaidScreen(onBack: () -> Unit) {
             val end = LocalDate.now()
             val start = end.minusDays(90)
             val fmt = DateTimeFormatter.ISO_DATE
-            val list = getPlaidTransactionsWithRetry(context, accessToken, start.format(fmt), end.format(fmt))
+            val list = getPlaidTransactionsWithRetry(
+                context,
+                accessToken,
+                start.format(fmt),
+                end.format(fmt)
+            )
             transactions = list.sortedByDescending { it.date }.take(30)
             weeklyTotal = computeWeeklyTotal(transactions)
             monthlyTotal = computeMonthlyTotal(transactions)
 
-            val recentTx = transactions.filter { LocalDate.parse(it.date) >= LocalDate.now().minusDays(7) }
+            val recentTx =
+                transactions.filter { LocalDate.parse(it.date) >= LocalDate.now().minusDays(7) }
             val promptText = buildString {
                 append("Rate my spending and give me advice.\n")
                 append("Note that the information I give you is all that I can give you.\n")
@@ -115,122 +143,140 @@ fun PlaidScreen(onBack: () -> Unit) {
 
     val categoryTotals by remember(transactions) { mutableStateOf(computeCategoryTotals(transactions)) }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-
-        TextButton(onClick = onBack) { Text("< Back", style = MaterialTheme.typography.bodyMedium) }
-        Spacer(Modifier.height(12.dp))
-
-        Text("Spending Habits (Beta)", style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(12.dp))
-
-        if (loading) {
-            Column(
-                modifier = Modifier.fillMaxWidth().height(200.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                CircularProgressIndicator()
-                Spacer(Modifier.height(8.dp))
-                Text("Loading transaction data from servers (Beta feature)")
-            }
-        }
-
-        error?.let { Text(it, color = Color.Red) }
-
-        if (!loading && error == null) {
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                SummaryCardDynamic("Weekly total", weeklyTotal, Color(0xFFB3E5FC))
-                SummaryCardDynamic("Monthly total", monthlyTotal, Color(0xFFFFF9C4))
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            Column(
-                modifier= Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ){
-                Text("Spending by Category", style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(8.dp))
-                SpendingPieChart(categoryTotals)
-                Spacer(Modifier.height(8.dp))
-            }
-
-
-            Spacer(Modifier.height(12.dp))
-
-            Column (
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Spending Habits (Beta)") },
+                navigationIcon = {
+                    IconButton(onClick = { onBack() }) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
             )
-            {
-                Button(onClick = { showTransactionModal = true }) {
-                    Text("View Transactions (${transactions.size})")
-                }
-                Spacer(Modifier.height(12.dp))
-                Button(onClick = { showAIModal = true }) {
-                    Text("View Spending Suggestions")
+        },
+        containerColor=Color.Transparent
+    ) { paddingValues ->
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp)
+        ) {
+            Spacer(Modifier.height(12.dp))
+
+            if (loading) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().height(200.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator()
+                    Spacer(Modifier.height(8.dp))
+                    Text("Loading transaction data from servers (Beta feature)")
                 }
             }
 
+            error?.let { Text(it, color = Color.Red) }
+
+            if (!loading && error == null) {
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    SummaryCardDynamic("Weekly total", weeklyTotal, Color(0xFFB3E5FC))
+                    SummaryCardDynamic("Monthly total", monthlyTotal, Color(0xFFFFF9C4))
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("Spending by Category", style = MaterialTheme.typography.titleSmall)
+                    Spacer(Modifier.height(8.dp))
+                    SpendingPieChart(categoryTotals)
+                    Spacer(Modifier.height(8.dp))
+                }
+
+
+                Spacer(Modifier.height(12.dp))
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                )
+                {
+                    Button(onClick = { showTransactionModal = true }) {
+                        Text("View Transactions (${transactions.size})")
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Button(onClick = { showAIModal = true }) {
+                        Text("View Spending Suggestions")
+                    }
+                }
+
+            }
         }
-    }
 
 
-    if (showTransactionModal) {
-        ModalBottomSheet(
-            onDismissRequest = { showTransactionModal = false },
-            sheetState = transactionSheetState
-        ) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
+
+        if (showTransactionModal) {
+            ModalBottomSheet(
+                onDismissRequest = { showTransactionModal = false },
+                sheetState = transactionSheetState
             ) {
-                Text("Transactions", style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(8.dp))
-                LazyColumn {
-                    items(transactions) { tx ->
-                        TransactionRow(tx)
-                        Spacer(Modifier.height(4.dp))
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text("Transactions", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(8.dp))
+                    LazyColumn {
+                        items(transactions) { tx ->
+                            TransactionRow(tx)
+                            Spacer(Modifier.height(4.dp))
+                        }
+                    }
+                }
+            }
+        }
+
+
+        if (showAIModal) {
+            ModalBottomSheet(
+                onDismissRequest = { showAIModal = false },
+                sheetState = aiSheetState
+            ) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text("Spending Review", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(8.dp))
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(250.dp)
+                            .background(
+                                Color.LightGray.copy(alpha = 0.2f),
+                                shape = MaterialTheme.shapes.medium
+                            )
+                            .padding(16.dp)
+                            .verticalScroll(rememberScrollState()),
+                        contentAlignment = Alignment.TopStart
+                    ) {
+                        Text(aiResponse)
                     }
                 }
             }
         }
     }
-
-
-    if (showAIModal) {
-        ModalBottomSheet(
-            onDismissRequest = { showAIModal = false },
-            sheetState = aiSheetState
-        ) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Text("Spending Review", style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(8.dp))
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(250.dp)
-                        .background(Color.LightGray.copy(alpha = 0.2f), shape = MaterialTheme.shapes.medium)
-                        .padding(16.dp)
-                        .verticalScroll(rememberScrollState()),
-                    contentAlignment = Alignment.TopStart
-                ) {
-                    Text(aiResponse)
-                }
-            }
-        }
-    }
 }
-
 @Composable
 fun SummaryCardDynamic(label: String, amount: Double, backgroundColor: Color) {
     val amountText = "$${"%.2f".format(amount)}"
@@ -504,14 +550,19 @@ fun SpendingPieChart(categoryTotals: Map<String, Double>, modifier: Modifier = M
             Column(verticalArrangement = Arrangement.Center) {
                 var colorIndex = 0
                 categoryTotals.forEach { (category, amount) ->
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .padding(vertical = 2.dp)
+                            .background(Color.Black.copy(alpha=0.3f), shape=MaterialTheme.shapes.small)
+                            .padding(horizontal = 8.dp)
+                    ) {
                         Box(
                             modifier = Modifier
                                 .size(16.dp)
                                 .background(colors[colorIndex % colors.size])
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text("$category: $${"%.2f".format(amount)}", style = MaterialTheme.typography.bodyMedium)
+                        Text("$category: $${"%.2f".format(amount)}", style = MaterialTheme.typography.bodyMedium,color=Color.White)
                     }
                     colorIndex++
                 }
