@@ -1,3 +1,12 @@
+/**
+ * Tasks Activity is where users tasks are retrieved from MongoDB and sorted/grouped by date
+ * Tasks can be "completed" via checkmark
+ *
+ * Tasks changing will delete the respective RoomDB context, to ensure that a new AI curated answer is provided
+ * Tasks can be added via microphone speech to text
+ */
+
+
 package com.example.personal_secretary
 
 
@@ -83,6 +92,9 @@ import retrofit2.http.Path
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 
+/**
+ * Helper model classes
+ */
 data class TaskModel(
     val _id: String,
     val date: String,
@@ -100,6 +112,9 @@ data class TaskRequest(
     val user: String ="guest"
 )
 
+/**
+ * Assume Speech is empty
+ */
 object TempSpeechBuffer {
     var text: String = ""
 }
@@ -117,6 +132,9 @@ interface TaskApiService {
     suspend fun deleteTask(@Path("id") id: String): Response<Unit>
 }
 
+/**
+ * Singleton to help prevent overuse
+ */
 object TaskApiClient {
     private const val BASE_URL = "http://10.0.2.2:4000/"
     val apiService: TaskApiService by lazy {
@@ -129,6 +147,10 @@ object TaskApiClient {
 }
 
 
+/**
+ * Sets up to allow microphone usage upon entering the screen
+ * Sets up notifications to be 10 seconds after creating one (for demo purposes)
+ */
 class TasksActivity : ComponentActivity() {
 
     private lateinit var email: String
@@ -208,6 +230,12 @@ class TasksActivity : ComponentActivity() {
 
         WorkManager.getInstance(context).enqueue(workRequest)
     }
+
+
+    /**
+     * Screen will load tasks and filter by email received from Login -> Home
+     * Allow add/edit/delete
+     */
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun TasksScreen(
@@ -408,6 +436,9 @@ class TasksActivity : ComponentActivity() {
     }
 
 
+    /**
+     * Ensure that TaskRequests fit the Model
+     */
     fun TaskRequest.toTaskModel(id: String = java.util.UUID.randomUUID().toString()): TaskModel =
         TaskModel(
             _id = id,
@@ -418,6 +449,9 @@ class TasksActivity : ComponentActivity() {
             user = this.user
         )
 
+    /**
+     * Each Task has its own Card due to theme making it difficult to read
+     */
     @Composable
     fun TaskItem(task: TaskModel, onToggleDone: (TaskModel) -> Unit, onClick: () -> Unit) {
         Row(
@@ -441,6 +475,9 @@ class TasksActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Create the Add task option, allowing inputs for calendar picker, location and description
+     */
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun AddTaskDialog(
@@ -527,6 +564,11 @@ class TasksActivity : ComponentActivity() {
             dismissButton = { Button(onClick = onDismiss) { Text("Cancel") } }
         )
     }
+
+
+    /**
+     * Microphone button to add a task by speech
+     */
     @Composable
     fun SpeechToTextButton(onResult: (String) -> Unit) {
         val context = LocalContext.current
@@ -590,6 +632,11 @@ class TasksActivity : ComponentActivity() {
                 Icon(Icons.Default.Mic, "Tap for Speech to Text")
         }
     }
+
+    /**
+     * Edit will allow you to change fields or delete
+     * If editing or deleting, delete the RoomDB context for the user
+     */
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun EditTaskDialog(

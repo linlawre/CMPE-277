@@ -1,3 +1,9 @@
+/**
+ * Settings Page provides three options
+ * SELECT Theme from Presets
+ * Change password
+ * Logout
+ */
 package com.example.personal_secretary
 
 import android.content.Intent
@@ -42,6 +48,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * Sets up the entire Settings page in OnCreate including buttons and theming
+ */
 class SettingActivity : ComponentActivity() {
 
     @OptIn(ExperimentalMaterial3Api::class)

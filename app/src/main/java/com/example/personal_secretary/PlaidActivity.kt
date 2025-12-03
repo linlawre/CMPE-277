@@ -1,3 +1,11 @@
+/**
+ * PlaidActivity utilizes Plaid API and their sandbox option to create fake transactional data for the sake of demos
+ * Will include Plaid's API that already filters/categorizes them to allow us to add up category totals
+ *
+ * Transaction List and an option to view an AI-overview of the spending is provided
+ */
+
+
 package com.example.personal_secretary
 
 import android.content.Context
@@ -28,7 +36,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -80,6 +87,9 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Properties
 
+/**
+ * Set up the backbone with Theme and ensuring transparent background for the theme to load
+ */
 class PlaidActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -110,6 +120,9 @@ class PlaidActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Will retrieve the data from Plaid and present it using other helper methods
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaidScreen(onBack: () -> Unit) {
@@ -306,6 +319,10 @@ fun PlaidScreen(onBack: () -> Unit) {
         }
     }
 }
+
+/**
+ * Each category total needs to have its own Card due to theme readability
+ */
 @Composable
 fun SummaryCardDynamic(label: String, amount: Double, backgroundColor: Color) {
     val amountText = "$${"%.2f".format(amount)}"
@@ -322,6 +339,10 @@ fun SummaryCardDynamic(label: String, amount: Double, backgroundColor: Color) {
     }
 }
 
+
+/**
+ * Sets up the transaction list area and also retrieves the data from Plaid to provide views to user
+ */
 @Composable
 fun TransactionRow(tx: PlaidTransaction) {
     Card(modifier = Modifier
@@ -351,6 +372,9 @@ fun TransactionRow(tx: PlaidTransaction) {
     }
 }
 
+/**
+ * Gets a hidden API value from our file
+ */
 private fun Context.getConfigValue(key: String): String? {
     val props = Properties()
     return try {
@@ -375,6 +399,9 @@ interface BackendApi {
     suspend fun sendPrompt(@Url url: String, @Body body: BackendRequest): Response<BackendResponse>
 }
 
+/**
+ * Helper function to send to OpenAI channels
+ */
 @OptIn(ExperimentalSerializationApi::class)
 suspend fun sendToBackend(
     context: Context,
@@ -482,6 +509,9 @@ interface PlaidApi {
     suspend fun getTransactions(@Body body: TransactionsGetRequest): TransactionsGetResponse
 }
 
+/**
+ * Retrieve the PlaidSandbox Key
+ */
 private suspend fun createPlaidSandboxItem(context: Context): String {
     val clientId = context.getConfigValue("PLAID_CLIENT_ID")!!
     val secret = context.getConfigValue("PLAID_SECRET")!!
@@ -502,6 +532,9 @@ private suspend fun createPlaidSandboxItem(context: Context): String {
     return exchangeResp.access_token ?: throw Exception("Plaid did not return access_token")
 }
 
+/**
+ * Plaid sandboxes are not present until generate, so requires a retry
+ */
 private suspend fun getPlaidTransactionsWithRetry(context: Context, accessToken: String, startDate: String, endDate: String): List<PlaidTransaction> {
     var attempts = 0
     val maxAttempts = 10
@@ -516,16 +549,25 @@ private suspend fun getPlaidTransactionsWithRetry(context: Context, accessToken:
     throw Exception("Transactions product not ready after $maxAttempts attempts")
 }
 
+/**
+ * Go through transactions and tally up Monday-Sunday
+ */
 private fun computeWeeklyTotal(list: List<PlaidTransaction>): Double {
     val cutoff = LocalDate.now().minusDays(7)
     return list.filter { LocalDate.parse(it.date) >= cutoff }.sumOf { it.amount }
 }
 
+/**
+ * Tally up all transactions
+ */
 private fun computeMonthlyTotal(list: List<PlaidTransaction>): Double {
     val cutoff = LocalDate.now().minusMonths(1)
     return list.filter { LocalDate.parse(it.date) >= cutoff }.sumOf { it.amount }
 }
 
+/**
+ * Sets up the model
+ */
 data class PlaidTransaction(
     val name: String,
     val amount: Double,
@@ -544,6 +586,9 @@ data class PersonalFinanceCategory(
     val version: String?
 )
 
+/**
+ * Creates a PieChart of the categorical spending
+ */
 @Composable
 fun SpendingPieChart(categoryTotals: Map<String, Double>, modifier: Modifier = Modifier.size(200.dp)) {
     val total = categoryTotals.values.sum()
@@ -630,6 +675,9 @@ private fun PlaidTransactionRaw.toPlaidTransaction(): PlaidTransaction {
     )
 }
 
+/**
+ * After retrieving key for sandbox, get all the transactions
+ */
 @OptIn(ExperimentalSerializationApi::class)
 private suspend fun getPlaidTransactions(
     context: Context,

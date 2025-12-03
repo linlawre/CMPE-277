@@ -1,3 +1,9 @@
+/**
+ * This is the Notes Screen
+ * Users will be presented with their notes saved in MongoDB by an email saved from Login -> Home -> Notes
+ * Users can also create notes
+ */
+
 package com.example.personal_secretary
 
 import android.os.Bundle
@@ -67,6 +73,9 @@ import retrofit2.http.PUT
 import retrofit2.http.Path
 import java.time.LocalDate
 
+/**
+ * Set up the information in a Note
+ */
 data class NoteRequest(
     val date: String,
     val user: String = "guest",
@@ -75,6 +84,9 @@ data class NoteRequest(
 )
 
 
+/**
+ * The API points we will use
+ */
 interface ApiService {
     @GET("notes")
     suspend fun getNotes(): List<NoteModel>
@@ -89,6 +101,9 @@ interface ApiService {
     suspend fun deleteNote(@Path("id") id: String): Response<Map<String, Any>>
 }
 
+/**
+ * Set up a singleton & builder pattern to prevent needing to repeat code
+ */
 object ApiClient {
     private const val BASE_URL = "http://10.0.2.2:4000/"
     val apiService: ApiService by lazy {
@@ -100,7 +115,9 @@ object ApiClient {
     }
 }
 
-
+/**
+ * Create the basic backbone by retrieving the theme and applying a dark tint to background to assist in reading
+ */
 class NotesActivity : ComponentActivity() {
     private lateinit var email: String
 
@@ -139,6 +156,9 @@ class NotesActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Sets up the screen including options of how to create a note
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotesScreen(
@@ -164,6 +184,7 @@ fun NotesScreen(
         finally { isLoading = false }
     }
 
+    // Templates to help reduce time in creating notes
     val templates = mapOf(
         "Grocery List" to """
             • Milk
@@ -329,7 +350,9 @@ fun NotesScreen(
     }
 }
 
-
+/**
+ * Each Note should have special Card to increase readability in our theming
+ */
 @Composable
 fun NoteItem(note: NoteModel, onClick: () -> Unit) {
     Card(modifier = Modifier
@@ -348,6 +371,9 @@ fun NoteItem(note: NoteModel, onClick: () -> Unit) {
 }
 
 
+/**
+ * The pop up that appears when you click Add, to allow input fields
+ */
 @Composable
 fun AddNoteDialog(
     email: String,
@@ -399,6 +425,10 @@ fun AddNoteDialog(
     )
 }
 
+/**
+ * When clicking a note, you can edit it and it will pop up with its current info that can be changed
+ * Also can be deleted if you choose to do so
+ */
 @Composable
 fun EditNoteDialog(
     note: NoteModel,

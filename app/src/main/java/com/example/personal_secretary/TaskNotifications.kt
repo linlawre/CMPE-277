@@ -1,3 +1,7 @@
+/**
+ * Sets up the worker necessary for creating notifications
+ */
+
 package com.example.personal_secretary
 
 import android.app.NotificationManager
@@ -6,6 +10,9 @@ import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 
+/**
+ * Sets up the Worker to be ready to create notifications
+ */
 class TaskNotifications(
     context: Context,
     workerParams: WorkerParameters

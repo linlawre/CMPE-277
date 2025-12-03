@@ -1,3 +1,11 @@
+/**
+*
+ * ThemeList contains the list of possible options to choose from in the SettingsPage
+ *
+ * It also ensures loading/saving theme into RoomDB is done to ensure we can pull it in other areas
+ */
+
+
 package com.example.personal_secretary
 
 import android.content.Context
@@ -9,6 +17,9 @@ import kotlinx.coroutines.launch
 
 object ThemeList {
 
+    /**
+     * Make it easier to compare Themes
+     */
     enum class Theme(@DrawableRes val backgroundRes: Int) {
         DEFAULT(0),
         BOBA(R.drawable.boba_background),
@@ -26,6 +37,9 @@ object ThemeList {
     var currentTheme by mutableStateOf(Theme.DEFAULT)
 
 
+    /**
+     * Retrieve Theme from RoomDB
+     */
     fun loadTheme(context: Context, userId: String, onComplete: (() -> Unit)? = null) {
         val repository = ThemeRepository(context)
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
@@ -35,6 +49,9 @@ object ThemeList {
         }
     }
 
+    /**
+     * Save Theme into RoomDB
+     */
     fun saveTheme(context: Context, userId: String, theme: Theme, onComplete: (() -> Unit)? = null) {
         val repository = ThemeRepository(context)
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
