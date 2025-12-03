@@ -1,3 +1,7 @@
+/**
+ * Contains all the Entity,Dao, data classes for RoomDB
+ */
+
 package com.example.personal_secretary
 
 import android.content.Context
@@ -92,6 +96,9 @@ abstract class AppDatabase : RoomDatabase() {
 }
 
 
+/**
+ * Contains the functions necessary to retrieve/save from RoomDB
+ */
 class ResponseRepository(context: Context) {
 
     private val dao = AppDatabase.getDatabase(context).aiResponseDao()

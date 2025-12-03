@@ -1,3 +1,8 @@
+/**
+ * This adds an extra (full page) Splash Screen when launching the application.
+ * Mostly for aesthetic purposes
+ */
+
 package com.example.personal_secretary
 
 import android.content.Intent

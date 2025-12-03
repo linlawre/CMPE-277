@@ -63,7 +63,11 @@ app.post("/login", async (req, res) => {
 
 
 /**
-Tim's notes routes. To be edited later as they are placeholder w/ Guest
+Tim's notes routes.
+*/
+
+/**
+Schema for Notes, could be moved if needed
 */
 const NoteSchema = new mongoose.Schema({
     date: { type: String, required: true },
@@ -72,9 +76,10 @@ const NoteSchema = new mongoose.Schema({
     description: { type: String, required: true }
 });
 
+//Variable we use for Note DB
 const Note = mongoose.model("Note", NoteSchema);
 
-// Debugging to test in Postman
+// Debugging to test in Postman to ensure I have proper access
 app.get("/debug/users", async (req, res) => {
   try {
     const users = await User.find();
@@ -86,7 +91,7 @@ app.get("/debug/users", async (req, res) => {
   }
 });
 
-// Debugging to test in Postman
+// Debugging to test in Postman to ensure I have proper access
 app.get("/debug/notes", async (req, res) => {
   try {
     const notes = await Note.find();
@@ -99,7 +104,8 @@ app.get("/debug/notes", async (req, res) => {
 });
 
 
-
+/** Return all notes
+*/
 app.get("/notes", async (req, res) => {
   try {
     const notes = await Note.find();
@@ -110,6 +116,7 @@ app.get("/notes", async (req, res) => {
 });
 
 
+// Check if body contains all necessary info then create a note
 app.post("/notes", async (req, res) => {
   try {
     const { date, title, user, description } = req.body;
@@ -133,7 +140,7 @@ app.post("/notes", async (req, res) => {
   }
 });
 
-
+//Edit a note with new info
 app.put("/notes/:id", async (req, res) => {
   try {
     const noteId = req.params.id;
@@ -160,6 +167,7 @@ app.put("/notes/:id", async (req, res) => {
   }
 });
 
+//Delete a note with a given Id
 app.delete("/notes/:id", async (req, res) => {
     try {
         const { id } = req.params;
@@ -177,6 +185,8 @@ app.delete("/notes/:id", async (req, res) => {
 /**
 Tasks Routes
 **/
+
+//Task Schema
 const taskSchema = new mongoose.Schema({
   description: { type: String, required: true },
   location: { type: String, default: null },
@@ -185,14 +195,17 @@ const taskSchema = new mongoose.Schema({
   user: { type:String,required:true}
 });
 
+
+//Variable for Task DB
 const Task = mongoose.model('Task', taskSchema);
 
+//Retrieve all tasks
 app.get('/tasks', async (req, res) => {
   const tasks = await Task.find();
   res.json(tasks);
 });
 
-
+//Create a task
 app.post('/tasks', async (req, res) => {
   const { description, location, date, done,user } = req.body;
   if (!description || !date) return res.status(400).json({ success: false, message: "Missing required fields" });
@@ -201,7 +214,7 @@ app.post('/tasks', async (req, res) => {
   res.json(task);
 });
 
-
+//Edit a task with new informations
 app.put('/tasks/:id', async (req, res) => {
   const { id } = req.params;
   const { description, location, date, done, user } = req.body;
@@ -214,7 +227,7 @@ app.put('/tasks/:id', async (req, res) => {
   res.json(task);
 });
 
-
+//Delete a task w/ given ID
 app.delete('/tasks/:id', async (req, res) => {
   const { id } = req.params;
   const task = await Task.findByIdAndDelete(id);
@@ -222,6 +235,7 @@ app.delete('/tasks/:id', async (req, res) => {
   res.json({ success: true });
 });
 
+//Show all tasks; used for Postman to check that I have access
 app.get('/debug/tasks', async (req, res) => {
   try {
     const tasks = await Task.find();
@@ -236,6 +250,7 @@ app.get('/debug/tasks', async (req, res) => {
   }
 });
 
+//Change password, utilized with code from sign-up to ensure password is changed properly
 app.post("/change-password", async (req, res) => {
     try {
         const { email, oldPassword, newPassword } = req.body;

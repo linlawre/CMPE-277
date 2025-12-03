@@ -1,3 +1,8 @@
+/**
+ * Weather helps with multiple helper functions to fetch from OpenWeatherMap API
+ * Originally was a full page, but now is just a helper kotlin to MainActivity as we dont need a full page
+ */
+
 package com.example.personal_secretary
 
 import android.Manifest
@@ -58,6 +63,9 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.coroutines.resume
 
+/**
+ * Not important as we no longer go to this page
+ */
 class WeatherActivity : ComponentActivity() {
 
 
@@ -74,6 +82,9 @@ class WeatherActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Creates a WeatherCard that feteches the weather and updates it to the response
+ */
 @Composable
 fun WeatherCard() {
     val context = LocalContext.current
@@ -140,6 +151,10 @@ fun WeatherCard() {
     }
 }
 
+
+/**
+ * The REST API endpoint for OpenWeatherMap API. Needs all fields to query
+ */
 interface WeatherApi {
     @GET("onecall/day_summary")
     suspend fun getDaySummary(
@@ -151,6 +166,9 @@ interface WeatherApi {
     ): DaySummaryResponse
 }
 
+/**
+ * Using GPS, fetch the weather and return the necessary information
+ */
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalSerializationApi::class)
 suspend fun fetchWeather(context: Context, onResult: (String) -> Unit) {
@@ -218,6 +236,9 @@ suspend fun fetchWeather(context: Context, onResult: (String) -> Unit) {
     }
 }
 
+/**
+ * Ensure we are not fetching older locations if its null
+ */
 suspend fun requestFreshLocation(
     context: Context,
     fused: FusedLocationProviderClient

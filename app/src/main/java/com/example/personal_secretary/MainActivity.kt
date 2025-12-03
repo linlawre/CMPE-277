@@ -1,3 +1,15 @@
+/**
+ * This is the homescreen of our application coming from Login Screen.
+ * User will be greeted with three cards
+ *      Weather
+ *      Daily
+ *      Weekly
+ *
+ * And also a navigation bar at the bottom to navigate to other screens
+ */
+
+
+
 package com.example.personal_secretary
 
 import android.Manifest
@@ -35,7 +47,6 @@ import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.StickyNote2
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -85,6 +96,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var requestPermissionLauncher:
             androidx.activity.result.ActivityResultLauncher<String>
 
+    /**
+     * on accessing the page for the first time
+     * Load theme (if saved in RoomDB)
+     * And take the email sent from LoginActivity
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         email = intent.getStringExtra("EMAIL") ?: "Unknown"
@@ -98,6 +114,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
 
+        //Load Theme
         ThemeList.loadTheme(this, email) {
             runOnUiThread {
                 setContent {
@@ -109,6 +126,10 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    /**
+     * This is a testing function for permissions. This is not used here
+     */
     private fun checkMicrophonePermission() {
         when {
             ContextCompat.checkSelfPermission(
@@ -123,6 +144,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+/**
+ * Sets up the WeatherCard using functions from WeatherActivity
+ * It should prompt the user for GPS and ping OpenWeatherMap API for day-summaries
+ */
 @Composable
 fun WeatherCardHome() {
     val context = LocalContext.current
@@ -145,6 +171,7 @@ fun WeatherCardHome() {
             }
         }
 
+    //On page open, get GPS
     LaunchedEffect(Unit) {
         val permission = Manifest.permission.ACCESS_FINE_LOCATION
         if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
@@ -159,6 +186,7 @@ fun WeatherCardHome() {
         }
     }
 
+    //Create the card
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -219,6 +247,11 @@ fun WeatherCardHome() {
     }
 }
 
+/**
+ * Sets up the Daily card
+ * This will retrieve tasks from MongoDB and check for todays date. If so, it sends it to OpenAI for OpenAI to provide a suggestion
+ * If response is received, save in RoomDB, otherwise tell user to enjoy their day
+ */
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun SummaryHomeDaily(email: String) {
@@ -249,6 +282,7 @@ fun SummaryHomeDaily(email: String) {
                 text = "No pending tasks! Enjoy!"
             } else {
 
+                //Prompt building, while also trying to reduce the amount of tokens and making it seem less AI based by making it more concise
                 val prompt = buildString {
                     append("Please summarize the following tasks for today ($today) for the user.\n")
                     append("Provide a short concise summary and suggested next steps.\n\n")
@@ -280,6 +314,7 @@ fun SummaryHomeDaily(email: String) {
             isLoading = false
         }
     }
+    //Create the card
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -350,6 +385,11 @@ fun SummaryHomeDaily(email: String) {
     }
 }
 
+/**
+ * Sets up the Weekly Card
+ * This will retrieve tasks from MongoDB and check for Monday-Sunday date. If so, it sends it to OpenAI for OpenAI to provide a suggestion
+ * If response is received, save in RoomDB, otherwise tell user to enjoy their day
+ */
     @RequiresApi(Build.VERSION_CODES.O)
     @Composable
     fun SummaryHomeWeekly(email: String) {
@@ -488,6 +528,9 @@ fun SummaryHomeDaily(email: String) {
         }
     }
 
+/**
+ * Create the composable of the Screen which will contain the Cards we created above (Weather/Daily/Weekly)
+ */
     @Composable
     fun HomeScreen(
         checkMicrophonePermission: () -> Unit,
@@ -516,6 +559,7 @@ fun SummaryHomeDaily(email: String) {
             }
         }
 
+    //Set Theme
         Box(modifier = Modifier.fillMaxSize()) {
             if (ThemeList.currentTheme.backgroundRes != 0) {
                 Image(
