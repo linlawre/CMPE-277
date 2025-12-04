@@ -16,6 +16,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Personal_Secretary"
         android:usesCleartextTraffic="true">
+        <meta-data
+            android:name="com.google.android.gms.client_id"
+            android:value="112703878452-t4b126otbbttnl6jdeprt3l77t2bo81d.apps.googleusercontent.com" />
 
         <activity
             android:name=".SplashActivity"
