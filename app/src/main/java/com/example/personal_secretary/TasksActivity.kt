@@ -25,6 +25,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -278,17 +279,23 @@ class TasksActivity : ComponentActivity() {
             },
 
             floatingActionButton = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                Row(
+                    horizontalArrangement=Arrangement.spacedBy(12.dp)
                 ) {
-                    FloatingActionButton(onClick = { showForm = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "Add Task")
-                    }
+
+                    CalendarViewButton(tasks = tasks)
+
                     SpeechToTextButton { spokenText ->
                         showForm = true
                         selectedTask = null
                         TempSpeechBuffer.text = spokenText
                     }
+
+                    FloatingActionButton(onClick = { showForm = true }) {
+                        Icon(Icons.Default.Add, contentDescription = "Add Task")
+                    }
+
+
                 }
             }
         ) { paddingValues ->
@@ -724,6 +731,79 @@ class TasksActivity : ComponentActivity() {
             }
         )
     }
+
+
+    /**
+     * Button that allows you to pick a date and tasks will be shown for that date.
+     * Should help with planning out your day
+     */
+    @RequiresApi(Build.VERSION_CODES.O)
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    fun CalendarViewButton(tasks: List<TaskModel>) {
+        var showCalendar by remember { mutableStateOf(false) }
+
+        if (showCalendar) {
+            val taskDates = tasks.map { LocalDate.parse(it.date) }.toSet()
+            val datePickerState = rememberDatePickerState(
+                initialSelectedDateMillis = null
+            )
+
+            DatePickerDialog(
+                onDismissRequest = { showCalendar = false },
+                confirmButton = {
+                    TextButton(onClick = { showCalendar = false }) {
+                        Text("OK")
+                    }
+                }
+            ) {
+                Column {
+                    DatePicker(
+                        state = datePickerState,
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+
+                    val selectedDate = datePickerState.selectedDateMillis?.let {
+                        LocalDate.ofEpochDay(it / (24 * 60 * 60 * 1000))
+                    }
+
+                    selectedDate?.let { date ->
+                        val tasksForDate = tasks.filter { it.date == date.toString() }
+                        if (tasksForDate.isNotEmpty()) {
+                            Text(
+                                text = "Tasks for ${date}:",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                            tasksForDate.forEach { task ->
+                                Text(
+                                    "- ${task.description}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(start = 8.dp, bottom = 2.dp)
+                                )
+                            }
+                        } else {
+                            Text(
+                                text = "No tasks for ${date}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        FloatingActionButton(
+            onClick = { showCalendar = true },
+            containerColor = Color(0xFF4CAF50)
+        ) {
+            Text("Calendar", color = Color.White)
+        }
+    }
+
 }
 
 
